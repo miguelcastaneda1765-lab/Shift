@@ -61,6 +61,13 @@ flutter:
   # assets:
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
+  fonts:
+    - family: Forma DJR Deck
+      fonts:
+        - asset: assets/fonts/FormaDJRDeck-Black-Testing.otf
+          weight: 500
+        - asset: assets/fonts/FormaDJRDeck-Medium-Testing.otf
+          weight: 900
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
