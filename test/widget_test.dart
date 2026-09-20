@@ -1,30 +1,27 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Prueba básica: confirma que la app carga y que la pantalla de Ranking
+// muestra su título principal.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:bienestar_accion/main.dart';
+import 'package:bienestar_accion/screens/ranking_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('La pantalla de Ranking muestra el título', (WidgetTester tester) async {
+    // Aquí no usamos MyApp directamente porque MyApp requiere que Firebase
+    // ya esté inicializado (eso pasa en main(), no en este test).
+    // En su lugar, probamos RankingScreen sola, envuelta en un MaterialApp
+    // mínimo para que tenga lo necesario para dibujarse (Directionality, tema, etc.).
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: RankingScreen(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verifica que el título "Ranking nacional" esté en pantalla.
+    expect(find.text('Ranking nacional'), findsOneWidget);
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verifica que el botón de registrar sesión también esté presente.
+    expect(find.text('+ Registrar sesión'), findsOneWidget);
   });
 }
