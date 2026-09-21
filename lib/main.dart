@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Forma DJR Deck',
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
       ),
-      home: const RankingScreen(),
+      home: const HomeScreen(),
     );
   }
 }

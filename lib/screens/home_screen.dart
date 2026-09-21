@@ -16,42 +16,76 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   // En el diseño el ícono de la casa es el segundo de la barra
   // (mano, casa, estrella, persona), así que Home = 1.
-  // En Ranking la estrella es 2, lo que concuerda con este orden.
   int _selectedNavIndex = 1;
 
-  // TODO: reemplazar estos valores de ejemplo con datos reales
-  // (Firebase Auth para el nombre, Firestore para el resto).
-  final String _userName = 'Andrea';
-  final String _campusName = 'Campus Laguna';
-  final int _streakDays = 14;
+  // ID del documento de la colección "Alumnos" cuyos datos se muestran.
+  // TODO: cuando haya inicio de sesión, cambiarlo por el uid del usuario
+  // (FirebaseAuth.instance.currentUser!.uid).
+  static const String _studentDocId = 'IdAlumno';
   final int _routineMinutes = 5;
-  final int _dailyGoalMinutes = 45;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
+        // StreamBuilder escucha el documento del alumno en tiempo real:
+        // si cambias Nombre o Campus en la consola de Firebase, la
+        // pantalla se actualiza sola, sin recargar.
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('Alumnos')
+              .doc(_studentDocId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'No se pudieron cargar tus datos.\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AppColors.lyricwhite),
+                ),
+              );
+            }
 
-              // Espacio para la imagen de la app (hoy el "Mii" del diseño).
-              // Ocupa todo el alto disponible entre el encabezado y las
-              // tarjetas de abajo, y queda vacío hasta que haya una URL en
-              // Firestore.
-              const Expanded(child: _HomeImageSlot()),
+            if (!snapshot.hasData) {
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              );
+            }
 
-              _buildRecommendedRoutine(),
-              const SizedBox(height: 12),
-              _buildStartButton(),
-              const SizedBox(height: 16),
-              _buildDailyGoal(),
-            ],
-          ),
+            // Los nombres de los campos ('Nombre', 'Campus') tienen que
+            // coincidir EXACTAMENTE con los de la consola, incluyendo
+            // mayúsculas. Si el documento no existe, .data() es null y
+            // se usan los valores por defecto.
+            final Map<String, dynamic> data = snapshot.data!.data() ?? {};
+            final String userName = data['Nombre'] as String? ?? 'Alumno';
+            final String campus = data['Campus'] as String? ?? '';
+            final int streakDays = (data['Racha_Dias'] as num?)?.toInt() ?? 0;
+            final int dailyGoalMinutes = (data['MetaDiaria'] as num?)?.toInt() ?? 0;
+            final String campusName = campus.isEmpty ? '' : 'Campus $campus';
+
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(userName: userName, campusName: campusName, streakDays: streakDays),
+
+                  // Espacio para la imagen de la app (hoy el "Mii" del
+                  // diseño). Ocupa todo el alto disponible y queda vacío
+                  // hasta que haya una URL en Firestore.
+                  const Expanded(child: _HomeImageSlot()),
+
+                  _buildRecommendedRoutine(),
+                  const SizedBox(height: 12),
+                  _buildStartButton(),
+                  const SizedBox(height: 16),
+                  _buildDailyGoal(dailyGoalMinutes),
+                ],
+              ),
+            );
+          },
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
@@ -62,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ---- Encabezado: campus + saludo a la izquierda, racha a la derecha ----
-  Widget _buildHeader() {
+  Widget _buildHeader({required String userName, required String campusName, required int streakDays,}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -71,12 +105,12 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _campusName,
+                campusName,
                 style: const TextStyle(color: AppColors.primary, fontSize: 13),
               ),
               const SizedBox(height: 2),
               Text(
-                '¡Hola, $_userName!',
+                '¡Hola, $userName!',
                 style: const TextStyle(
                   color: AppColors.primary,
                   fontSize: 28,
@@ -87,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        _StreakBadge(days: _streakDays),
+        _StreakBadge(days: streakDays),
       ],
     );
   }
@@ -156,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ---- "¿Lista para entrenar?" + tarjeta de meta diaria ----
-  Widget _buildDailyGoal() {
+  Widget _buildDailyGoal(int dailyGoalMinutes) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -177,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(24),
           ),
           child: Text(
-            'Meta diaria: $_dailyGoalMinutes min.',
+            'Meta diaria: $dailyGoalMinutes min.',
             style: const TextStyle(
               color: AppColors.primary,
               fontSize: 20,
@@ -237,9 +271,9 @@ class _StreakBadge extends StatelessWidget {
 //   (mismo tamaño, sin romper el layout).
 // - Con una URL válida: muestra la imagen.
 //
-// OJO: los nombres 'app_config', 'home' e 'imageUrl' son provisionales.
-// Tienen que coincidir EXACTAMENTE con lo que se cree en la consola de
-// Firebase; si en el equipo ya definieron otros, cámbialos aquí.
+// OJO: 'app_config', 'home' e 'imageUrl' son nombres provisionales y ese
+// documento todavía no existe en Firebase. Cuando se cree (o si prefieren
+// guardar la URL en otro lugar), deben coincidir EXACTAMENTE.
 
 class _HomeImageSlot extends StatelessWidget {
   const _HomeImageSlot();
