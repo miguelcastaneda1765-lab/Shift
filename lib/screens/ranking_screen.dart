@@ -307,9 +307,9 @@ class _RankingScreenState extends State<RankingScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (second != null) second,
-        if (first != null) first,
-        if (third != null) third,
+        ?second,
+        ?first,
+        ?third,
       ],
     );
   }
