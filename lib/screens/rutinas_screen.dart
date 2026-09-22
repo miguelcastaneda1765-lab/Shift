@@ -17,6 +17,7 @@ class Routine {
   final String id;
   final String title;
   final String category;
+  final String sportCategory;
   final String level;
   final int durationMin;
   final String description;
@@ -30,6 +31,7 @@ class Routine {
     required this.id,
     required this.title,
     required this.category,
+    required this.sportCategory,
     required this.level,
     required this.durationMin,
     required this.description,
@@ -45,15 +47,16 @@ class Routine {
     return Routine(
       id: doc.id,
       title: data['Titulo'] as String? ?? 'Rutina',
-      category: data['Categoria'] as String? ?? '',
+      category: data['Categoría'] as String? ?? '',
+      sportCategory: data['TipoDeporte'] as String? ?? '',
       level: data['Nivel'] as String? ?? '',
-      durationMin: (data['DuracionMin'] as num?)?.toInt() ?? 0,
-      description: data['Descripcion'] as String? ?? '',
+      durationMin: (data['DuraciónMin'] as num?)?.round() ?? 0,
+      description: data['Descripción'] as String? ?? '',
       coach: data['Coach'] as String? ?? '',
       campus: data['Campus'] as String? ?? '',
       featured: data['Destacada'] as bool? ?? false,
-      imageUrl: data['ImagenUrl'] as String? ?? '',
-      videoUrl: data['VideoUrl'] as String? ?? '',
+      imageUrl: data['ImagenURL'] as String? ?? '',
+      videoUrl: data['VideoURL'] as String? ?? '',
     );
   }
 }
@@ -72,6 +75,31 @@ String _normalize(String text) {
       .replaceAll('ü', 'u');
 }
 
+/// Categoría de deporte -> color (los mismos 5 grupos y colores que se
+/// usan en la pantalla de Perfil). Busca por palabra clave, así que
+/// "Confrontación" o "Confrontación de equipos" dan el mismo color.
+Color _colorForSportCategory(String? category) {
+  if (category == null || category.isEmpty) return AppColors.primary;
+  final String c = _normalize(category);
+
+  if (c.contains('rendimiento') || c.contains('tiempo')) {
+    return AppColors.performance; // verde
+  }
+  if (c.contains('confrontacion') || c.contains('equipos')) {
+    return AppColors.teams; // naranja
+  }
+  if (c.contains('combate')) {
+    return AppColors.fight; // rojo
+  }
+  if (c.contains('acondicionamiento')) {
+    return AppColors.physicalFitness; // azul
+  }
+  if (c.contains('expresion') || c.contains('tecnico')) {
+    return AppColors.expression; // amarillo
+  }
+  return AppColors.primary;
+}
+
 // ---------------------------------------------------------------------------
 // PANTALLA PRINCIPAL
 // ---------------------------------------------------------------------------
@@ -88,8 +116,10 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
   // (mano, casa, estrella, persona), así que Rutinas = 0.
   int _selectedNavIndex = 0;
 
-  // Filtros: chip de categoría seleccionado y texto de la búsqueda.
+  // Filtros: chip de categoría, chip de tipo de deporte y texto de la
+  // búsqueda.
   String _selectedCategory = 'Todas';
+  String _selectedSport = 'Todos';
   String _query = '';
   final TextEditingController _searchController = TextEditingController();
 
@@ -145,15 +175,29 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
             final String selected =
                 categories.contains(_selectedCategory) ? _selectedCategory : 'Todas';
 
-            // Filtro por categoría + búsqueda por texto (título, nivel o
-            // categoría).
+            // Igual que las categorías, pero con el campo TipoDeporte.
+            final List<String> sportCategories = [
+              'Todos',
+              ...{
+                for (final r in all)
+                  if (r.sportCategory.isNotEmpty) r.sportCategory,
+              },
+            ];
+            final String selectedSport = sportCategories.contains(_selectedSport)
+                ? _selectedSport
+                : 'Todos';
+
+            // Filtro por categoría + tipo de deporte + búsqueda por texto
+            // (título, nivel o categoría).
             final String query = _normalize(_query);
             final List<Routine> filtered = all.where((r) {
               final bool matchesCategory =
                   selected == 'Todas' || r.category == selected;
+              final bool matchesSport =
+                  selectedSport == 'Todos' || r.sportCategory == selectedSport;
               final bool matchesQuery = query.isEmpty ||
                   _normalize('${r.title} ${r.level} ${r.category}').contains(query);
-              return matchesCategory && matchesQuery;
+              return matchesCategory && matchesSport && matchesQuery;
             }).toList();
 
             // La rutina destacada es la primera marcada como Destacada que
@@ -187,6 +231,13 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                   _buildSearchField(),
                   const SizedBox(height: 14),
                   _buildCategoryChips(categories, selected),
+                  // Mientras ninguna rutina tenga TipoDeporte, esta fila
+                  // solo tendría "Todos" y se vería como un duplicado de
+                  // "Todas". Se muestra solo cuando hay opciones reales.
+                  if (sportCategories.length > 1) ...[
+                    const SizedBox(height: 10),
+                    _buildSportChips(sportCategories, selectedSport),
+                  ],
                   const SizedBox(height: 20),
 
                   if (filtered.isEmpty)
@@ -281,6 +332,29 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     );
   }
 
+  // ---- Chips de tipo de deporte (con scroll horizontal y color) ----
+  Widget _buildSportChips(List<String> sportCategories, String selected) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final sport in sportCategories)
+            Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: _SportChip(
+                label: sport,
+                color: sport == 'Todos'
+                    ? AppColors.primary
+                    : _colorForSportCategory(sport),
+                isSelected: sport == selected,
+                onTap: () => setState(() => _selectedSport = sport),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   // ---- "Rutina destacada" + nivel ----
   Widget _buildFeaturedHeader(Routine featured) {
     return Row(
@@ -365,6 +439,51 @@ class _CategoryChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip de tipo de deporte: usa el color de su categoría (los mismos
+/// colores que en Perfil), relleno cuando está seleccionado.
+class _SportChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _SportChip({
+    required this.label,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // El texto blanco no se lee sobre el amarillo, ahí va oscuro.
+    final bool useLightText = color != AppColors.expression;
+    final Color textColor = isSelected
+        ? (useLightText ? Colors.white : AppColors.background)
+        : color;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.transparent,
+          border: Border.all(color: color),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
         ),
       ),
     );
