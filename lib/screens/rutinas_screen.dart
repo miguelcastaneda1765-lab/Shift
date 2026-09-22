@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../theme/app_colors.dart';
-import '../widgets/bottom_nav_bar.dart';
 
-/// Pantalla de Rutinas.
+import '../theme/app_colors.dart';
+
+/// Contenido de la pantalla de Rutinas.
 /// Ubicación: lib/screens/routines_screen.dart
+///
+/// OJO: este widget ya NO trae Scaffold ni AppBottomNavBar propios.
+/// Se muestra dentro de la pantalla raíz (MainNavigationScreen).
 
 // ---------------------------------------------------------------------------
 // MODELO DE DATOS
@@ -40,7 +43,9 @@ class Routine {
     required this.videoUrl,
   });
 
-  factory Routine.fromFirestore(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  factory Routine.fromFirestore(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     final Map<String, dynamic> data = doc.data();
     return Routine(
       id: doc.id,
@@ -84,10 +89,6 @@ class RoutinesScreen extends StatefulWidget {
 }
 
 class _RoutinesScreenState extends State<RoutinesScreen> {
-  // En el diseño el ícono de la mano es el primero de la barra
-  // (mano, casa, estrella, persona), así que Rutinas = 0.
-  int _selectedNavIndex = 0;
-
   // Filtros: chip de categoría seleccionado y texto de la búsqueda.
   String _selectedCategory = 'Todas';
   String _query = '';
@@ -106,9 +107,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Container(
+      color: AppColors.background,
+      child: SafeArea(
         // Escucha la colección completa en tiempo real. Los filtros se
         // aplican aquí mismo, en la app, sobre la lista que llegó.
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -130,8 +131,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
               );
             }
 
-            final List<Routine> all =
-                snapshot.data!.docs.map(Routine.fromFirestore).toList();
+            final List<Routine> all = snapshot.data!.docs
+                .map(Routine.fromFirestore)
+                .toList();
 
             // Los chips salen de las categorías que existen en la base de
             // datos: si alguien crea una categoría nueva, aparece sola.
@@ -142,8 +144,9 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
                   if (r.category.isNotEmpty) r.category,
               },
             ];
-            final String selected =
-                categories.contains(_selectedCategory) ? _selectedCategory : 'Todas';
+            final String selected = categories.contains(_selectedCategory)
+                ? _selectedCategory
+                : 'Todas';
 
             // Filtro por categoría + búsqueda por texto (título, nivel o
             // categoría).
@@ -151,19 +154,24 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
             final List<Routine> filtered = all.where((r) {
               final bool matchesCategory =
                   selected == 'Todas' || r.category == selected;
-              final bool matchesQuery = query.isEmpty ||
-                  _normalize('${r.title} ${r.level} ${r.category}').contains(query);
+              final bool matchesQuery =
+                  query.isEmpty ||
+                  _normalize('${r.title} ${r.level} ${r.category}')
+                      .contains(query);
               return matchesCategory && matchesQuery;
             }).toList();
 
             // La rutina destacada es la primera marcada como Destacada que
             // pase los filtros; el resto va en la lista de abajo.
-            final List<Routine> featuredList =
-                filtered.where((r) => r.featured).toList();
-            final Routine? featured =
-                featuredList.isEmpty ? null : featuredList.first;
-            final List<Routine> others =
-                filtered.where((r) => r.id != featured?.id).toList();
+            final List<Routine> featuredList = filtered
+                .where((r) => r.featured)
+                .toList();
+            final Routine? featured = featuredList.isEmpty
+                ? null
+                : featuredList.first;
+            final List<Routine> others = filtered
+                .where((r) => r.id != featured?.id)
+                .toList();
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -227,19 +235,15 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
           },
         ),
       ),
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: _selectedNavIndex,
-        onTap: (index) => setState(() => _selectedNavIndex = index),
-      ),
     );
   }
 
   // ---- Barra de búsqueda ----
   Widget _buildSearchField() {
     OutlineInputBorder border(double width) => OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
-          borderSide: BorderSide(color: AppColors.primary, width: width),
-        );
+      borderRadius: BorderRadius.circular(28),
+      borderSide: BorderSide(color: AppColors.primary, width: width),
+    );
 
     return TextField(
       controller: _searchController,
@@ -337,8 +341,9 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color textColor =
-        isSelected ? AppColors.background : AppColors.primary;
+    final Color textColor = isSelected
+        ? AppColors.background
+        : AppColors.primary;
 
     return GestureDetector(
       onTap: onTap,
@@ -485,7 +490,10 @@ class _FeaturedCard extends StatelessWidget {
                   const Positioned(
                     top: 8,
                     left: 8,
-                    child: Icon(Icons.bookmark_border, color: AppColors.primary),
+                    child: Icon(
+                      Icons.bookmark_border,
+                      color: AppColors.primary,
+                    ),
                   ),
                   if (routine.durationMin > 0)
                     Positioned(

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../theme/app_colors.dart';
-import '../widgets/bottom_nav_bar.dart';
 
-/// Pantalla de Perfil.
+import '../theme/app_colors.dart';
+
+/// Contenido de la pantalla de Perfil.
 /// Ubicación: lib/screens/profile_screen.dart
+///
+/// OJO: este widget ya NO trae Scaffold ni AppBottomNavBar propios.
+/// Se muestra dentro de la pantalla raíz (MainNavigationScreen).
 
 const Color _logoutRed = Color(0xFFE53935);
 
@@ -16,19 +19,15 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // En el diseño el ícono de la persona es el cuarto de la barra
-  // (mano, casa, estrella, persona), así que Perfil = 3.
-  int _selectedNavIndex = 3;
-
   // Mismo alumno que en el Home.
   // TODO: cuando haya inicio de sesión, cambiarlo por el uid del usuario.
   static const String _studentDocId = 'IdAlumno';
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Container(
+      color: AppColors.background,
+      child: SafeArea(
         child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
               .collection('Alumnos')
@@ -60,8 +59,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final int days = (data['Racha_Dias'] as num?)?.toInt() ?? 0;
 
             // Estadísticas: ya vienen guardadas en el documento del alumno.
-            final int minutosTotales = (data['minutosTotales'] as num?)?.toInt() ?? 0;
-            final int promedioSemanal = (data['promedioSemanal'] as num?)?.toInt() ?? 0;
+            final int minutosTotales =
+                (data['minutosTotales'] as num?)?.toInt() ?? 0;
+            final int promedioSemanal =
+                (data['promedioSemanal'] as num?)?.toInt() ?? 0;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -117,10 +118,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             );
           },
         ),
-      ),
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: _selectedNavIndex,
-        onTap: (index) => setState(() => _selectedNavIndex = index),
       ),
     );
   }
@@ -243,7 +240,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -345,9 +344,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 /// Da formato con comas de miles: 8420 -> "8,420".
 String _formatThousands(int value) {
   return value.toString().replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (match) => ',',
-      );
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (match) => ',',
+  );
 }
 
 /// Quita mayúsculas y acentos para comparar nombres de deportes:
@@ -450,8 +449,9 @@ class _SportPill extends StatelessWidget {
         final String label = (sport == null || sport.isEmpty) ? '—' : sport;
         final Color sportColor = _colorForSport(sport);
         // El texto blanco no se lee sobre el amarillo, ahí va oscuro.
-        final Color textColor =
-            sportColor == AppColors.expression ? AppColors.background : Colors.white;
+        final Color textColor = sportColor == AppColors.expression
+            ? AppColors.background
+            : Colors.white;
 
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
@@ -564,9 +564,7 @@ class _AchievementTile extends StatelessWidget {
   final String? title;
   final String? subtitle;
 
-  const _AchievementTile.locked()
-      : title = null,
-        subtitle = null;
+  const _AchievementTile.locked() : title = null, subtitle = null;
 
   const _AchievementTile.unlocked({
     required this.title,

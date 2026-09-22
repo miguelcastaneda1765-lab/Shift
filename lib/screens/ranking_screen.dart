@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../theme/app_colors.dart';
-import '../widgets/bottom_nav_bar.dart';
 
 /// Pantalla de Ranking nacional.
 /// Ubicación sugerida: lib/screens/ranking_screen.dart
@@ -63,7 +63,7 @@ Color _colorForPosition(int position) {
     case 3:
       return AppColors.third;
     default:
-      return AppColors.lyricwhite.withValues(alpha: 0.5);
+      return AppColors.primary.withValues(alpha: 0.5);
   }
 }
 
@@ -85,8 +85,7 @@ String _labelForPosition(int position) {
 // PANTALLA PRINCIPAL
 // ---------------------------------------------------------------------------
 // Es StatefulWidget porque tiene cosas que cambian mientras el usuario
-// interactúa: qué botón de periodo está activo, y qué ícono del menú
-// está seleccionado.
+// interactúa: qué botón de periodo está activo.
 
 class RankingScreen extends StatefulWidget {
   const RankingScreen({super.key});
@@ -97,19 +96,19 @@ class RankingScreen extends StatefulWidget {
 
 class _RankingScreenState extends State<RankingScreen> {
   int _selectedPeriod = 0; // 0 = Esta semana, 1 = Este mes
-  int _selectedNavIndex = 2; // el ícono de estrella, porque estamos en Ranking
 
   @override
   Widget build(BuildContext context) {
     // Según el botón de periodo seleccionado, leemos un campo distinto
     // del documento. Estos nombres tienen que coincidir EXACTAMENTE con
     // los campos que crearon en la consola de Firebase.
-    final String minutesField =
-        _selectedPeriod == 0 ? 'minutesThisWeek' : 'minutesThisMonth';
+    final String minutesField = _selectedPeriod == 0
+        ? 'minutesThisWeek'
+        : 'minutesThisMonth';
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Container(
+      color: AppColors.background,
+      child: SafeArea(
         // StreamBuilder escucha la colección en tiempo real: cada vez que
         // algo cambie en Firestore (alguien registra minutos, por ejemplo),
         // este builder se vuelve a ejecutar automáticamente con los datos
@@ -125,7 +124,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 child: Text(
                   'No se pudo cargar el ranking.\n${snapshot.error}',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.lyricwhite),
+                  style: const TextStyle(color: AppColors.primary),
                 ),
               );
             }
@@ -144,7 +143,7 @@ class _RankingScreenState extends State<RankingScreen> {
               return const Center(
                 child: Text(
                   'Aún no hay campus registrados.',
-                  style: TextStyle(color: AppColors.lyricwhite),
+                  style: TextStyle(color: AppColors.primary),
                 ),
               );
             }
@@ -163,8 +162,9 @@ class _RankingScreenState extends State<RankingScreen> {
 
             // Los primeros 3 van al podio; el resto, a la tabla de abajo.
             final List<CampusRanking> podium = ranking.take(3).toList();
-            final List<CampusRanking> rest =
-                ranking.length > 3 ? ranking.sublist(3) : const [];
+            final List<CampusRanking> rest = ranking.length > 3
+                ? ranking.sublist(3)
+                : const [];
 
             return SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -174,7 +174,7 @@ class _RankingScreenState extends State<RankingScreen> {
                   Text(
                     'Ranking',
                     style: TextStyle(
-                      color: AppColors.lyricwhite.withValues(alpha: 0.6),
+                      color: AppColors.primary.withValues(alpha: 0.6),
                       fontSize: 13,
                     ),
                   ),
@@ -209,10 +209,6 @@ class _RankingScreenState extends State<RankingScreen> {
           },
         ),
       ),
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: _selectedNavIndex,
-        onTap: (index) => setState(() => _selectedNavIndex = index),
-      ),
     );
   }
 
@@ -245,7 +241,7 @@ class _RankingScreenState extends State<RankingScreen> {
           label,
           style: TextStyle(
             color: isSelected ? AppColors.background : AppColors.primary,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
             fontSize: 13,
           ),
         ),
@@ -268,7 +264,7 @@ class _RankingScreenState extends State<RankingScreen> {
           const Expanded(
             child: Text(
               '¿Campus Laguna será ganador?',
-              style: TextStyle(color: AppColors.lyricwhite, fontSize: 13),
+              style: TextStyle(color: AppColors.primary, fontSize: 13),
             ),
           ),
           Container(
@@ -284,7 +280,11 @@ class _RankingScreenState extends State<RankingScreen> {
                 SizedBox(width: 4),
                 Text(
                   '2 días',
-                  style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -299,17 +299,23 @@ class _RankingScreenState extends State<RankingScreen> {
   Widget _buildPodium(List<CampusRanking> podium) {
     // Seguridad extra: si por alguna razón hay menos de 3 campus registrados
     // en Firestore, no truena, solo dibuja los que sí existen.
-    final Widget? first = podium.isNotEmpty ? _podiumCircleFor(podium[0]) : null;
-    final Widget? second = podium.length > 1 ? _podiumCircleFor(podium[1]) : null;
-    final Widget? third = podium.length > 2 ? _podiumCircleFor(podium[2]) : null;
+    final Widget? first = podium.isNotEmpty
+        ? _podiumCircleFor(podium[0])
+        : null;
+    final Widget? second = podium.length > 1
+        ? _podiumCircleFor(podium[1])
+        : null;
+    final Widget? third = podium.length > 2
+        ? _podiumCircleFor(podium[2])
+        : null;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        ?second,
-        ?first,
-        ?third,
+        if (second != null) second,
+        if (first != null) first,
+        if (third != null) third,
       ],
     );
   }
@@ -362,7 +368,7 @@ class _RankingScreenState extends State<RankingScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.lyricwhite.withValues(alpha: 0.15)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -372,7 +378,10 @@ class _RankingScreenState extends State<RankingScreen> {
           for (int i = 0; i < rest.length; i++) ...[
             _RankingRow(data: rest[i]),
             if (i != rest.length - 1)
-              Divider(color: AppColors.lyricwhite.withValues(alpha: 0.15), height: 1),
+              Divider(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                height: 1,
+              ),
           ],
         ],
       ),
@@ -384,7 +393,7 @@ class _RankingScreenState extends State<RankingScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.lyricwhite.withValues(alpha: 0.15)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -397,12 +406,18 @@ class _RankingScreenState extends State<RankingScreen> {
               children: [
                 const Text(
                   'Tu impacto hoy',
-                  style: TextStyle(color: AppColors.lyricwhite, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '+20 min. aportados a Campus Laguna',
-                  style: TextStyle(color: AppColors.lyricwhite.withValues(alpha: 0.6), fontSize: 12),
+                  style: TextStyle(
+                    color: AppColors.primary.withValues(alpha: 0.6),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -424,11 +439,16 @@ class _RankingScreenState extends State<RankingScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
         ),
         child: const Text(
           '+ Registrar sesión',
-          style: TextStyle(color: AppColors.background, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.background,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -487,7 +507,11 @@ class _PodiumCircle extends StatelessWidget {
             ],
             Text(
               label,
-              style: TextStyle(color: ringColor, fontSize: 12, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: ringColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -521,11 +545,18 @@ class _CampusPill extends StatelessWidget {
         children: [
           Text(
             name,
-            style: TextStyle(color: borderColor, fontWeight: FontWeight.bold, fontSize: 13),
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
           Text(
             '$minutes min.',
-            style: TextStyle(color: AppColors.lyricwhite.withValues(alpha: 0.6), fontSize: 11),
+            style: TextStyle(
+              color: AppColors.primary.withValues(alpha: 0.6),
+              fontSize: 11,
+            ),
           ),
         ],
       ),
@@ -556,7 +587,7 @@ class _RankingRow extends StatelessWidget {
       case RankTrend.down:
         return AppColors.fight;
       case RankTrend.same:
-        return AppColors.lyricwhite.withValues(alpha: 0.5);
+        return AppColors.primary.withValues(alpha: 0.5);
     }
   }
 
@@ -568,22 +599,36 @@ class _RankingRow extends StatelessWidget {
         children: [
           Text(
             '${data.position}',
-            style: const TextStyle(color: AppColors.lyricwhite, fontSize: 16, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           Icon(_trendIcon, color: _trendColor, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               data.name,
-              style: const TextStyle(color: AppColors.lyricwhite, fontSize: 14),
+              style: const TextStyle(color: AppColors.primary, fontSize: 14),
             ),
           ),
           Text(
             '${data.minutes}',
-            style: const TextStyle(color: AppColors.lyricwhite, fontSize: 14, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(width: 4),
-          Text('min.', style: TextStyle(color: AppColors.lyricwhite.withValues(alpha: 0.6), fontSize: 12)),
+          Text(
+            'min.',
+            style: TextStyle(
+              color: AppColors.primary.withValues(alpha: 0.6),
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );

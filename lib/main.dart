@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+
 import 'firebase_options.dart';
-import 'screens/ranking_screen.dart';
-import 'screens/home_screen.dart';
-import 'screens/perfil_screen.dart';
-import 'screens/rutinas_screen.dart';
+import 'screens/main_navigation_screen.dart';
 
 void main() async {
   // OBLIGATORIA: si no la pones, la app se cierra al arrancar.
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   runApp(const MyApp());
 }
@@ -29,7 +25,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Forma DJR Deck',
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
       ),
-      home: const RoutinesScreen(),
+      home: const MainNavigationScreen(),
     );
   }
 }

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../theme/app_colors.dart';
-import '../widgets/bottom_nav_bar.dart';
 
-/// Pantalla de Home (menú principal).
+import '../theme/app_colors.dart';
+
+/// Contenido de la pantalla de Home (menú principal).
 /// Ubicación: lib/screens/home_screen.dart
+///
+/// OJO: este widget ya NO trae Scaffold ni AppBottomNavBar propios.
+/// Se muestra dentro de la pantalla raíz (MainNavigationScreen), que es
+/// la única que controla el menú de abajo y decide qué pantalla mostrar.
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,10 +18,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // En el diseño el ícono de la casa es el segundo de la barra
-  // (mano, casa, estrella, persona), así que Home = 1.
-  int _selectedNavIndex = 1;
-
   // ID del documento de la colección "Alumnos" cuyos datos se muestran.
   // TODO: cuando haya inicio de sesión, cambiarlo por el uid del usuario
   // (FirebaseAuth.instance.currentUser!.uid).
@@ -26,9 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
+    return Container(
+      color: AppColors.background,
+      child: SafeArea(
         // StreamBuilder escucha el documento del alumno en tiempo real:
         // si cambias Nombre o Campus en la consola de Firebase, la
         // pantalla se actualiza sola, sin recargar.
@@ -62,7 +62,8 @@ class _HomeScreenState extends State<HomeScreen> {
             final String userName = data['Nombre'] as String? ?? 'Alumno';
             final String campus = data['Campus'] as String? ?? '';
             final int streakDays = (data['Racha_Dias'] as num?)?.toInt() ?? 0;
-            final int dailyGoalMinutes = (data['MetaDiaria'] as num?)?.toInt() ?? 0;
+            final int dailyGoalMinutes =
+                (data['MetaDiaria'] as num?)?.toInt() ?? 0;
             final String campusName = campus.isEmpty ? '' : 'Campus $campus';
 
             return Padding(
@@ -70,7 +71,11 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(userName: userName, campusName: campusName, streakDays: streakDays),
+                  _buildHeader(
+                    userName: userName,
+                    campusName: campusName,
+                    streakDays: streakDays,
+                  ),
 
                   // Espacio para la imagen de la app (hoy el "Mii" del
                   // diseño). Ocupa todo el alto disponible y queda vacío
@@ -88,15 +93,15 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
-      bottomNavigationBar: AppBottomNavBar(
-        currentIndex: _selectedNavIndex,
-        onTap: (index) => setState(() => _selectedNavIndex = index),
-      ),
     );
   }
 
   // ---- Encabezado: campus + saludo a la izquierda, racha a la derecha ----
-  Widget _buildHeader({required String userName, required String campusName, required int streakDays,}) {
+  Widget _buildHeader({
+    required String userName,
+    required String campusName,
+    required int streakDays,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -175,7 +180,9 @@ class _HomeScreenState extends State<HomeScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
         ),
         child: const Text(
           'Calentemos juntas',
