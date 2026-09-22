@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "428820541328",
+    "project_id": "proyecto-76275",
+    "storage_bucket": "proyecto-76275.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:428820541328:android:335bcaecb0d312ebb54d15",
+        "android_client_info": {
+          "package_name": "com.example.bienestar_accion"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcZ1uU-yjskeCqOQSDinjCu88aKxDfOws"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:428820541328:android:4bbd07d5a8aa5e6eb54d15",
+        "android_client_info": {
+          "package_name": "com.example.daniboi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcZ1uU-yjskeCqOQSDinjCu88aKxDfOws"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:428820541328:android:10c5138bc1a20b5db54d15",
+        "android_client_info": {
+          "package_name": "com.example.proyecto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcZ1uU-yjskeCqOQSDinjCu88aKxDfOws"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
