@@ -4,6 +4,7 @@ import 'firebase_options.dart';
 import 'screens/ranking_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/perfil_screen.dart';
+import 'screens/rutinas_screen.dart';
 
 void main() async {
   // OBLIGATORIA: si no la pones, la app se cierra al arrancar.
@@ -28,7 +29,7 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Forma DJR Deck',
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal),
       ),
-      home: const ProfileScreen(),
+      home: const RoutinesScreen(),
     );
   }
 }
