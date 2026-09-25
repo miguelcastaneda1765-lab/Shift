@@ -8,7 +8,9 @@ class AppColors {
   AppColors._();
 
   // ---- Fondo ----
-  static const Color background = Color(0xFF27282B); // fondo general de pantallas
+  static const Color background = Color(
+    0xFF27282B,
+  ); // fondo general de pantallas
 
   // ---- Mas colores ----
   static const Color primary = Color(0xFF43B9B5);
@@ -26,5 +28,11 @@ class AppColors {
   static const Color third = Color(0xFF975E21);
 
   // ---- Lyrics ----
-    static const Color lyricwhite = Color(0xFFFFFFFF);
+  static const Color lyricwhite = Color(0xFFFFFFFF);
+
+  // ---- Gradientes ----
+  static const List<Color> logoGradient = [
+    primary, // tu teal principal
+    performance, // tu verde
+  ];
 }

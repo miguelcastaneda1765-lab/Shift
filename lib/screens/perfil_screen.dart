@@ -2,128 +2,108 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/deporte_colors.dart';
+import 'locker_screen.dart';
 
 /// Contenido de la pantalla de Perfil.
-/// Ubicación: lib/screens/profile_screen.dart
+/// Ubicación: lib/screens/perfil_screen.dart
 ///
-/// OJO: este widget ya NO trae Scaffold ni AppBottomNavBar propios.
-/// Se muestra dentro de la pantalla raíz (MainNavigationScreen).
+/// Ahora recibe alumnoData y campusData ya cargados desde
+/// MainNavigationScreen (mismo patrón que HomeScreen), en vez de volver a
+/// leerlos de Firestore aquí mismo.
+///
+/// OJO: como los datos llegan como prop (un "snapshot" fijo en el momento
+/// en que se armó MainNavigationScreen), esta pantalla YA NO se actualiza
+/// sola si algo cambia en Firestore mientras el alumno la tiene abierta
+/// (a diferencia de antes, que sí, por el StreamBuilder). Si eso importa
+/// —por ejemplo, que la racha se actualice sin salir y volver a entrar—
+/// hay que resolverlo en el nivel de MainNavigationScreen, no aquí.
 
 const Color _logoutRed = Color(0xFFE53935);
 
-class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+class ProfileScreen extends StatelessWidget {
+  final Map<String, dynamic> alumnoData;
+  final Map<String, dynamic>? campusData;
 
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  // Mismo alumno que en el Home.
-  // TODO: cuando haya inicio de sesión, cambiarlo por el uid del usuario.
-  static const String _studentDocId = 'IdAlumno';
+  const ProfileScreen({super.key, required this.alumnoData, this.campusData});
 
   @override
   Widget build(BuildContext context) {
+    final String name =
+        alumnoData['Nombre'] as String? ??
+        alumnoData['Usuario'] as String? ??
+        'Alumno';
+    final String campusNombre = campusData?['name'] as String? ?? '';
+    final String campusName = campusNombre.isEmpty
+        ? ''
+        : 'Campus $campusNombre';
+    final int days =
+        (alumnoData['Racha_Dias'] as num?)?.toInt() ??
+        (alumnoData['RachaDias'] as num?)?.toInt() ??
+        0;
+    final int minutosTotales =
+        (alumnoData['minutosTotales'] as num?)?.toInt() ?? 0;
+    final int promedioSemanal =
+        (alumnoData['promedioSemanal'] as num?)?.toInt() ?? 0;
+
     return Container(
       color: AppColors.background,
       child: SafeArea(
-        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('Alumnos')
-              .doc(_studentDocId)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'No se pudieron cargar tus datos.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.lyricwhite),
-                ),
-              );
-            }
-
-            if (!snapshot.hasData) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              );
-            }
-
-            // Los nombres de los campos tienen que coincidir EXACTAMENTE
-            // con los de la consola de Firebase (incluyendo mayúsculas).
-            final Map<String, dynamic> data = snapshot.data!.data() ?? {};
-            final String name = data['Nombre'] as String? ?? 'Alumno';
-            final String campus = data['Campus'] as String? ?? '';
-            final String campusName = campus.isEmpty ? '' : 'Campus $campus';
-            final int days = (data['Racha_Dias'] as num?)?.toInt() ?? 0;
-
-            // Estadísticas: ya vienen guardadas en el documento del alumno.
-            final int minutosTotales =
-                (data['minutosTotales'] as num?)?.toInt() ?? 0;
-            final int promedioSemanal =
-                (data['promedioSemanal'] as num?)?.toInt() ?? 0;
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTopBar(),
-                  const SizedBox(height: 8),
-
-                  // Espacio para la imagen de la app (hoy el "Mii" del
-                  // diseño). Queda vacío hasta que haya una URL en Firestore.
-                  const SizedBox(
-                    height: 150,
-                    width: double.infinity,
-                    child: _ProfileImageSlot(),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Center(
-                    child: Text(
-                      name,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Center(
-                    child: Text(
-                      campusName,
-                      style: TextStyle(
-                        color: AppColors.lyricwhite.withValues(alpha: 0.7),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  _buildTrainingRow(days: days),
-                  const SizedBox(height: 20),
-                  _buildLockerButton(),
-                  const SizedBox(height: 24),
-                  _buildSemesterStats(
-                    minutosTotales: minutosTotales,
-                    promedioSemanal: promedioSemanal,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildAchievements(),
-                ],
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildTopBar(context),
+              const SizedBox(height: 8),
+              const SizedBox(
+                height: 150,
+                width: double.infinity,
+                child: _ProfileImageSlot(),
               ),
-            );
-          },
+              const SizedBox(height: 12),
+              Center(
+                child: Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Center(
+                child: Text(
+                  campusName,
+                  style: TextStyle(
+                    color: AppColors.primary.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildTrainingRow(
+                days: days,
+                deporteRef: alumnoData['Deporte'] as DocumentReference?,
+              ),
+              const SizedBox(height: 20),
+              _buildLockerButton(context),
+              const SizedBox(height: 24),
+              _buildSemesterStats(
+                minutosTotales: minutosTotales,
+                promedioSemanal: promedioSemanal,
+              ),
+              const SizedBox(height: 24),
+              _buildAchievements(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ---- Barra superior: "Perfil" + botón "Cerrar sesión" ----
-  Widget _buildTopBar() {
+  Widget _buildTopBar(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         OutlinedButton(
           onPressed: () {
-            // TODO: cerrar sesión (cuando se agregue Firebase Auth).
+            // TODO: cerrar sesión (Firebase Auth) y regresar a Login.
           },
           style: OutlinedButton.styleFrom(
             foregroundColor: _logoutRed,
@@ -158,8 +138,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---- Fila "Entrenando" (deporte) | "Días" ----
-  Widget _buildTrainingRow({required int days}) {
+  Widget _buildTrainingRow({
+    required int days,
+    required DocumentReference? deporteRef,
+  }) {
     final Color line = AppColors.primary.withValues(alpha: 0.6);
 
     return Container(
@@ -176,13 +158,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     const Text(
                       'Entrenando',
-                      style: TextStyle(
-                        color: AppColors.lyricwhite,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: AppColors.primary, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
-                    const _SportPill(studentId: _studentDocId),
+                    _DeportePill(deporteRef: deporteRef),
                   ],
                 ),
               ),
@@ -195,10 +174,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     const Text(
                       'Días',
-                      style: TextStyle(
-                        color: AppColors.lyricwhite,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: AppColors.primary, fontSize: 12),
                     ),
                     const SizedBox(height: 8),
                     Container(
@@ -229,13 +205,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---- Botón grande "Tu locker >" ----
-  Widget _buildLockerButton() {
+  Widget _buildLockerButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: () {
-          // TODO: abrir la pantalla del locker.
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => LockerScreen(alumnoData: alumnoData),
+            ),
+          );
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -265,7 +244,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---- "Este semestre": movimiento total y promedio semanal ----
   Widget _buildSemesterStats({
     required int minutosTotales,
     required int promedioSemanal,
@@ -293,8 +271,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   value: _formatThousands(promedioSemanal),
                   unit: 'min.',
                   icon: Icons.trending_up,
-                  // TODO: comparar contra la meta semanal para decidir si
-                  // el texto es "objetivo cumplido" o algo distinto.
                   caption: 'objetivo cumplido',
                 ),
               ),
@@ -305,7 +281,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ---- "Tus logros" (estáticos por ahora) ----
   Widget _buildAchievements() {
     return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,80 +312,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// FUNCIONES AUXILIARES
-// ---------------------------------------------------------------------------
-
-/// Da formato con comas de miles: 8420 -> "8,420".
 String _formatThousands(int value) {
   return value.toString().replaceAllMapped(
     RegExp(r'\B(?=(\d{3})+(?!\d))'),
     (match) => ',',
   );
 }
-
-/// Quita mayúsculas y acentos para comparar nombres de deportes:
-/// "Natación" y "natacion" cuentan como el mismo deporte.
-String _normalize(String text) {
-  return text
-      .trim()
-      .toLowerCase()
-      .replaceAll('á', 'a')
-      .replaceAll('é', 'e')
-      .replaceAll('í', 'i')
-      .replaceAll('ó', 'o')
-      .replaceAll('ú', 'u')
-      .replaceAll('ü', 'u');
-}
-
-/// Deporte -> color de su categoría (los colores viven en AppColors).
-/// Las llaves van sin acentos y en minúsculas.
-const Map<String, Color> _sportColors = {
-  // Tiempo o rendimiento (verde)
-  'natacion': AppColors.performance,
-  'ciclismo': AppColors.performance,
-  'correr': AppColors.performance,
-  'atletismo': AppColors.performance,
-  'escalada': AppColors.performance,
-  'patinaje de velocidad': AppColors.performance,
-
-  // Confrontación de equipos (naranja)
-  'futbol': AppColors.teams,
-  'basketball': AppColors.teams,
-  'volleyball': AppColors.teams,
-  'tocho': AppColors.teams,
-  'futbol americano': AppColors.teams,
-  'tenis': AppColors.teams,
-  'beisbol': AppColors.teams,
-  'handball': AppColors.teams,
-
-  // Combate (rojo)
-  'tae kwon do': AppColors.fight,
-  'box': AppColors.fight,
-  'esgrima': AppColors.fight,
-
-  // Acondicionamiento físico (azul)
-  'gimnasio': AppColors.physicalFitness,
-  'pilates': AppColors.physicalFitness,
-  'yoga': AppColors.physicalFitness,
-
-  // Expresión o técnico-combinatorios (amarillo)
-  'gimnasia artistica': AppColors.expression,
-  'baile': AppColors.expression,
-  'ballet': AppColors.expression,
-  'patinaje artistico': AppColors.expression,
-};
-
-/// Color del botón "Entrenando" según el deporte. Si el deporte no está
-/// en la lista (o no hay), usa el color principal.
-Color _colorForSport(String? sport) {
-  if (sport == null) return AppColors.primary;
-  return _sportColors[_normalize(sport)] ?? AppColors.primary;
-}
-
-// ---------------------------------------------------------------------------
-// WIDGETS PEQUEÑOS, PRIVADOS DE ESTA PANTALLA
-// ---------------------------------------------------------------------------
 
 class _SectionTitle extends StatelessWidget {
   final String text;
@@ -430,50 +337,6 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-/// Botón "Gimnasio": lee el deporte de Entrenamientos/{studentId}
-/// (campo 'Deporte') y cambia de color según el deporte.
-class _SportPill extends StatelessWidget {
-  final String studentId;
-
-  const _SportPill({required this.studentId});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('Entrenamientos')
-          .doc(studentId)
-          .snapshots(),
-      builder: (context, snapshot) {
-        final String? sport = snapshot.data?.data()?['Deporte'] as String?;
-        final String label = (sport == null || sport.isEmpty) ? '—' : sport;
-        final Color sportColor = _colorForSport(sport);
-        // El texto blanco no se lee sobre el amarillo, ahí va oscuro.
-        final Color textColor = sportColor == AppColors.expression
-            ? AppColors.background
-            : Colors.white;
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-          decoration: BoxDecoration(
-            color: sportColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// Tarjeta de estadística con borde redondeado.
 class _StatCard extends StatelessWidget {
   final String title;
   final String value;
@@ -558,8 +421,6 @@ class _StatCard extends StatelessWidget {
   }
 }
 
-/// Logro: desbloqueado (con estrella, título y subtítulo) o bloqueado
-/// (solo un candado).
 class _AchievementTile extends StatelessWidget {
   final String? title;
   final String? subtitle;
@@ -600,7 +461,7 @@ class _AchievementTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: AppColors.lyricwhite,
+                          color: AppColors.primary,
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                         ),
@@ -610,7 +471,7 @@ class _AchievementTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: AppColors.lyricwhite.withValues(alpha: 0.7),
+                          color: AppColors.primary.withValues(alpha: 0.7),
                           fontSize: 10,
                         ),
                       ),
@@ -623,12 +484,9 @@ class _AchievementTile extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// ESPACIO DE IMAGEN CONECTADO A FIRESTORE
-// ---------------------------------------------------------------------------
-// Igual que en el Home: lee app_config/home, campo 'imageUrl'. Queda vacío
-// si no hay documento, campo o URL válida. Estos nombres son provisionales.
-
+/// Igual que en Home: lee app_config/home, campo 'imageUrl'. Esta sí sigue
+/// con su propio StreamBuilder porque es una imagen compartida por todos
+/// los alumnos, no un dato personal que venga en alumnoData.
 class _ProfileImageSlot extends StatelessWidget {
   const _ProfileImageSlot();
 
@@ -654,6 +512,74 @@ class _ProfileImageSlot extends StatelessWidget {
                 const SizedBox.expand(),
           ),
         );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PILL DE DEPORTE, CONECTADO A LA COLECCIÓN "Deportes"
+// ---------------------------------------------------------------------------
+// El alumno guarda una REFERENCIA (DocumentReference) al deporte que
+// practica, igual que con Campus. Este widget sigue esa referencia, trae
+// el documento real de "Deportes", y pinta el pill con su Nombre.
+//
+// El color viene de colorForTipo(), en theme/deporte_colors.dart — el
+// mismo cálculo que usa Locker para el color del torso, así nunca
+// quedan desincronizados.
+
+class _DeportePill extends StatelessWidget {
+  final DocumentReference? deporteRef;
+
+  const _DeportePill({required this.deporteRef});
+
+  Widget _pill({required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Si el alumno todavía no tiene ningún deporte asignado en la base
+    // de datos, mostramos un pill neutro en vez de tronar.
+    if (deporteRef == null) {
+      return _pill(label: '—', color: AppColors.primary);
+    }
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: deporteRef!.get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return _pill(
+            label: '...',
+            color: AppColors.primary.withValues(alpha: 0.5),
+          );
+        }
+
+        final Map<String, dynamic>? data =
+            snapshot.data?.data() as Map<String, dynamic>?;
+        if (data == null) {
+          return _pill(label: '—', color: AppColors.primary);
+        }
+
+        final String nombre = data['Nombre'] as String? ?? '—';
+        final String? tipo = data['Tipo'] as String?;
+        final Color color = colorForTipo(tipo);
+
+        return _pill(label: nombre, color: color);
       },
     );
   }

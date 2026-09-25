@@ -5,12 +5,12 @@ import '../theme/app_colors.dart';
 
 /// Pantalla de Ranking nacional.
 /// Ubicación sugerida: lib/screens/ranking_screen.dart
-
-// ---------------------------------------------------------------------------
-// MODELO DE DATOS
-// ---------------------------------------------------------------------------
-// Representa una fila de la tabla / el podio. Ahora se construye a partir
-// de un documento real de Firestore (colección "campus_ranking"), no a mano.
+///
+/// Recibe alumnoData y campusData desde MainNavigationScreen (mismo patrón
+/// que HomeScreen). El ranking en sí sigue viniendo de Firestore en tiempo
+/// real (no tendría sentido pasarlo como prop estático, ya que cambia con
+/// cada quien que registra minutos), pero usamos campusData para
+/// personalizar el banner con el campus real del alumno.
 
 enum RankTrend { up, down, same }
 
@@ -27,15 +27,6 @@ class CampusRanking {
     required this.trend,
   });
 
-  /// Convierte un documento de Firestore en un CampusRanking.
-  ///
-  /// [position] no viene guardado en la base de datos: se calcula aparte,
-  /// según el lugar que ocupa el documento dentro de la lista ya ordenada
-  /// por minutos (ver _RankingScreenState.build). Así nunca se desactualiza,
-  /// aunque cambien los minutos de todos los campus.
-  ///
-  /// [minutesField] decide si leemos 'minutesThisWeek' o 'minutesThisMonth',
-  /// según el botón de periodo que el usuario tenga seleccionado.
   factory CampusRanking.fromFirestore({
     required Map<String, dynamic> data,
     required int position,
@@ -43,17 +34,14 @@ class CampusRanking {
   }) {
     return CampusRanking(
       position: position,
-      name: data['name'] as String? ?? 'Campus',
+      name: data['Nombre'] as String? ?? 'Campus',
       minutes: (data[minutesField] as num?)?.toInt() ?? 0,
-      // TODO: calcular la tendencia real (subió/bajó/igual) cuando guardemos
-      // el historial de minutos de periodos anteriores. Por ahora se deja
-      // fija en "same" para no inventar datos que no tenemos.
+      // TODO: calcular la tendencia real cuando guardemos historial.
       trend: RankTrend.same,
     );
   }
 }
 
-/// Regresa el color de aro según la posición en el podio (1, 2 o 3).
 Color _colorForPosition(int position) {
   switch (position) {
     case 1:
@@ -67,7 +55,6 @@ Color _colorForPosition(int position) {
   }
 }
 
-/// Regresa la etiqueta de texto según la posición en el podio.
 String _labelForPosition(int position) {
   switch (position) {
     case 1:
@@ -81,14 +68,17 @@ String _labelForPosition(int position) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// PANTALLA PRINCIPAL
-// ---------------------------------------------------------------------------
-// Es StatefulWidget porque tiene cosas que cambian mientras el usuario
-// interactúa: qué botón de periodo está activo.
-
 class RankingScreen extends StatefulWidget {
-  const RankingScreen({super.key});
+  final Map<String, dynamic> alumnoData;
+  final Map<String, dynamic>? campusData;
+  final VoidCallback? onGoHome;
+
+  const RankingScreen({
+    super.key,
+    required this.alumnoData,
+    this.campusData,
+    this.onGoHome,
+  });
 
   @override
   State<RankingScreen> createState() => _RankingScreenState();
@@ -99,23 +89,22 @@ class _RankingScreenState extends State<RankingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Según el botón de periodo seleccionado, leemos un campo distinto
-    // del documento. Estos nombres tienen que coincidir EXACTAMENTE con
-    // los campos que crearon en la consola de Firebase.
     final String minutesField = _selectedPeriod == 0
-        ? 'minutesThisWeek'
-        : 'minutesThisMonth';
+        ? 'MinutesWeek'
+        : 'MinutesMonth';
+
+    // Nombre del campus del alumno, para personalizar el banner.
+    // Si campusData no llegó (aún no se cargó, o el alumno no tiene
+    // campus asignado), usamos un texto genérico para no romper el layout.
+    final String miCampus =
+        widget.campusData?['Nombre'] as String? ?? 'tu campus';
 
     return Container(
       color: AppColors.background,
       child: SafeArea(
-        // StreamBuilder escucha la colección en tiempo real: cada vez que
-        // algo cambie en Firestore (alguien registra minutos, por ejemplo),
-        // este builder se vuelve a ejecutar automáticamente con los datos
-        // nuevos, sin que nadie tenga que recargar la pantalla a mano.
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
-              .collection('campus_ranking')
+              .collection('CampusRanking')
               .orderBy(minutesField, descending: true)
               .snapshots(),
           builder: (context, snapshot) {
@@ -129,8 +118,6 @@ class _RankingScreenState extends State<RankingScreen> {
               );
             }
 
-            // Mientras Firestore responde la primera vez, mostramos un
-            // spinner de carga en vez de una pantalla vacía o rota.
             if (!snapshot.hasData) {
               return const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
@@ -148,9 +135,6 @@ class _RankingScreenState extends State<RankingScreen> {
               );
             }
 
-            // Ya llegaron los documentos ordenados por minutos (de más a
-            // menos), así que la posición de cada uno es simplemente su
-            // índice en la lista + 1.
             final List<CampusRanking> ranking = List.generate(docs.length, (i) {
               final data = docs[i].data() as Map<String, dynamic>;
               return CampusRanking.fromFirestore(
@@ -160,7 +144,6 @@ class _RankingScreenState extends State<RankingScreen> {
               );
             });
 
-            // Los primeros 3 van al podio; el resto, a la tabla de abajo.
             final List<CampusRanking> podium = ranking.take(3).toList();
             final List<CampusRanking> rest = ranking.length > 3
                 ? ranking.sublist(3)
@@ -192,7 +175,7 @@ class _RankingScreenState extends State<RankingScreen> {
                   const SizedBox(height: 16),
                   _buildPeriodToggle(),
                   const SizedBox(height: 16),
-                  _buildAlertBanner(),
+                  _buildAlertBanner(miCampus),
                   const SizedBox(height: 24),
                   _buildPodium(podium),
                   const SizedBox(height: 12),
@@ -200,7 +183,7 @@ class _RankingScreenState extends State<RankingScreen> {
                   const SizedBox(height: 20),
                   _buildRankingList(rest),
                   const SizedBox(height: 16),
-                  _buildImpactCard(),
+                  _buildImpactCard(miCampus),
                   const SizedBox(height: 12),
                   _buildRegisterButton(),
                 ],
@@ -212,7 +195,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Botones "Esta semana" / "Este mes" ----
   Widget _buildPeriodToggle() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -227,8 +209,6 @@ class _RankingScreenState extends State<RankingScreen> {
   Widget _periodButton({required String label, required int index}) {
     final bool isSelected = _selectedPeriod == index;
     return GestureDetector(
-      // setState reconstruye toda la pantalla, incluyendo el StreamBuilder,
-      // que arma una nueva consulta ordenada por el campo correspondiente.
       onTap: () => setState(() => _selectedPeriod = index),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -249,8 +229,8 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Banner "¿Campus Laguna será ganador?" ----
-  Widget _buildAlertBanner() {
+  // ---- Banner, ahora con el nombre real del campus del alumno ----
+  Widget _buildAlertBanner(String miCampus) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -261,10 +241,10 @@ class _RankingScreenState extends State<RankingScreen> {
         children: [
           const Icon(Icons.error_outline, color: AppColors.primary, size: 18),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
-              '¿Campus Laguna será ganador?',
-              style: TextStyle(color: AppColors.primary, fontSize: 13),
+              '¿$miCampus será ganador?',
+              style: const TextStyle(color: AppColors.primary, fontSize: 13),
             ),
           ),
           Container(
@@ -294,11 +274,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Podio: los 3 círculos con el número de posición ----
-  // Recibe la lista ya recortada a los primeros 3 lugares.
   Widget _buildPodium(List<CampusRanking> podium) {
-    // Seguridad extra: si por alguna razón hay menos de 3 campus registrados
-    // en Firestore, no truena, solo dibuja los que sí existen.
     final Widget? first = podium.isNotEmpty
         ? _podiumCircleFor(podium[0])
         : null;
@@ -329,9 +305,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Chips debajo del podio con nombre y minutos ----
-  // Usa el MISMO orden visual que _buildPodium (segundo, primero, tercero),
-  // para que cada pastilla quede justo debajo de su círculo correspondiente.
   Widget _buildPodiumPills(List<CampusRanking> podium) {
     final CampusRanking? first = podium.isNotEmpty ? podium[0] : null;
     final CampusRanking? second = podium.length > 1 ? podium[1] : null;
@@ -357,13 +330,8 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Tabla con las posiciones 4 en adelante ----
   Widget _buildRankingList(List<CampusRanking> rest) {
-    if (rest.isEmpty) {
-      // Con 3 campus o menos en la base de datos, no hay "resto" que
-      // mostrar en la tabla — evitamos dibujar un contenedor vacío.
-      return const SizedBox.shrink();
-    }
+    if (rest.isEmpty) return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -372,8 +340,6 @@ class _RankingScreenState extends State<RankingScreen> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
-        // Recorremos la lista con un for para poner un Divider (línea)
-        // entre cada fila, pero no después de la última.
         children: [
           for (int i = 0; i < rest.length; i++) ...[
             _RankingRow(data: rest[i]),
@@ -388,8 +354,7 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Tarjeta "Tu impacto hoy" ----
-  Widget _buildImpactCard() {
+  Widget _buildImpactCard(String miCampus) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -413,7 +378,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '+20 min. aportados a Campus Laguna',
+                  '+20 min. aportados a $miCampus',
                   style: TextStyle(
                     color: AppColors.primary.withValues(alpha: 0.6),
                     fontSize: 12,
@@ -427,14 +392,14 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // ---- Botón "+ Registrar sesión" ----
   Widget _buildRegisterButton() {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: () {
-          // TODO: aquí se conectará con la pantalla de Gimnasio para
-          // guardar la sesión real y sumarla al campus del estudiante.
+          // TODO: cuando exista la pantalla de Gimnasio de verdad, esto
+          // debería llevar ahí en vez de a Home directo.
+          widget.onGoHome?.call();
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
@@ -454,13 +419,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// WIDGETS PEQUEÑOS, PRIVADOS DE ESTA PANTALLA
-// ---------------------------------------------------------------------------
-// El guion bajo (_) al inicio del nombre significa "privado": solo se puede
-// usar dentro de este archivo. Como el podio y las filas de la tabla solo
-// se usan aquí, no hace falta crearles un archivo aparte.
 
 class _PodiumCircle extends StatelessWidget {
   final int position;

@@ -4,17 +4,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../theme/app_colors.dart';
 
 /// Contenido de la pantalla de Rutinas.
-/// Ubicación: lib/screens/routines_screen.dart
+/// Ubicación: lib/screens/rutinas_screen.dart
 ///
 /// OJO: este widget ya NO trae Scaffold ni AppBottomNavBar propios.
 /// Se muestra dentro de la pantalla raíz (MainNavigationScreen).
+///
+/// Ahora es un carrusel vertical: TODAS las rutinas se muestran expandidas
+/// (tarjeta grande), una debajo de otra. El campo 'Destacada' de Firestore
+/// ya no se usa para decidir el layout — antes decidía cuál rutina salía
+/// grande y cuál chica, pero eso ya no aplica. Pueden dejarlo en la base
+/// de datos sin problema, el código simplemente lo ignora.
 
 // ---------------------------------------------------------------------------
 // MODELO DE DATOS
 // ---------------------------------------------------------------------------
-// Representa un documento de la colección "Rutinas" de Firestore.
-// Los nombres de los campos tienen que coincidir EXACTAMENTE con los de la
-// consola de Firebase (mayúsculas incluidas, sin acentos).
+// OJO con los acentos y mayúsculas: 'Categoría', 'Descripción' y
+// 'DuraciónMin' llevan acento en tu base de datos; 'ImagenURL' y
+// 'VideoURL' llevan "URL" en mayúsculas. Tienen que coincidir exacto.
 
 class Routine {
   final String id;
@@ -25,7 +31,6 @@ class Routine {
   final String description;
   final String coach;
   final String campus;
-  final bool featured;
   final String imageUrl;
   final String videoUrl;
 
@@ -38,7 +43,6 @@ class Routine {
     required this.description,
     required this.coach,
     required this.campus,
-    required this.featured,
     required this.imageUrl,
     required this.videoUrl,
   });
@@ -50,21 +54,20 @@ class Routine {
     return Routine(
       id: doc.id,
       title: data['Titulo'] as String? ?? 'Rutina',
-      category: data['Categoria'] as String? ?? '',
+      category: data['Categoría'] as String? ?? '',
       level: data['Nivel'] as String? ?? '',
-      durationMin: (data['DuracionMin'] as num?)?.toInt() ?? 0,
-      description: data['Descripcion'] as String? ?? '',
+      // DuraciónMin viene como decimal (ej. 22.17) en tu base de datos —
+      // .round() lo deja en minutos enteros para mostrar ("22 min").
+      durationMin: (data['DuraciónMin'] as num?)?.round() ?? 0,
+      description: data['Descripción'] as String? ?? '',
       coach: data['Coach'] as String? ?? '',
       campus: data['Campus'] as String? ?? '',
-      featured: data['Destacada'] as bool? ?? false,
-      imageUrl: data['ImagenUrl'] as String? ?? '',
-      videoUrl: data['VideoUrl'] as String? ?? '',
+      imageUrl: data['ImagenURL'] as String? ?? '',
+      videoUrl: data['VideoURL'] as String? ?? '',
     );
   }
 }
 
-/// Quita mayúsculas y acentos para comparar textos en la búsqueda:
-/// "Básico" y "basico" cuentan como lo mismo.
 String _normalize(String text) {
   return text
       .trim()
@@ -82,14 +85,18 @@ String _normalize(String text) {
 // ---------------------------------------------------------------------------
 
 class RoutinesScreen extends StatefulWidget {
-  const RoutinesScreen({super.key});
+  final Map<String, dynamic> alumnoData;
+  final Map<String, dynamic>? campusData;
+
+  const RoutinesScreen({super.key, required this.alumnoData, this.campusData});
 
   @override
   State<RoutinesScreen> createState() => _RoutinesScreenState();
 }
 
 class _RoutinesScreenState extends State<RoutinesScreen> {
-  // Filtros: chip de categoría seleccionado y texto de la búsqueda.
+  String get _studentDocId => widget.alumnoData['id'] as String? ?? '';
+
   String _selectedCategory = 'Todas';
   String _query = '';
   final TextEditingController _searchController = TextEditingController();
@@ -105,132 +112,147 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     // (por ejemplo con el paquete video_player).
   }
 
+  /// Agrega o quita una rutina del arreglo de favoritas del alumno.
+  Future<void> _toggleFavorite(String routineId, bool isFavorite) async {
+    if (_studentDocId.isEmpty) return;
+    await FirebaseFirestore.instance
+        .collection('Alumnos')
+        .doc(_studentDocId)
+        .update({
+          'RutinasFavoritas': isFavorite
+              ? FieldValue.arrayRemove([routineId])
+              : FieldValue.arrayUnion([routineId]),
+        });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.background,
       child: SafeArea(
-        // Escucha la colección completa en tiempo real. Los filtros se
-        // aplican aquí mismo, en la app, sobre la lista que llegó.
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection('Rutinas').snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'No se pudieron cargar las rutinas.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.lyricwhite),
-                ),
-              );
-            }
+        // StreamBuilder de afuera: trae las rutinas favoritas del alumno.
+        // StreamBuilder de adentro: trae el catálogo completo de rutinas.
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: _studentDocId.isEmpty
+              ? const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty()
+              : FirebaseFirestore.instance
+                    .collection('Alumnos')
+                    .doc(_studentDocId)
+                    .snapshots(),
+          builder: (context, alumnoSnapshot) {
+            final List<String> favoritas =
+                (alumnoSnapshot.data?.data()?['RutinasFavoritas'] as List?)
+                    ?.cast<String>() ??
+                [];
 
-            if (!snapshot.hasData) {
-              return const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              );
-            }
-
-            final List<Routine> all = snapshot.data!.docs
-                .map(Routine.fromFirestore)
-                .toList();
-
-            // Los chips salen de las categorías que existen en la base de
-            // datos: si alguien crea una categoría nueva, aparece sola.
-            final List<String> categories = [
-              'Todas',
-              ...{
-                for (final r in all)
-                  if (r.category.isNotEmpty) r.category,
-              },
-            ];
-            final String selected = categories.contains(_selectedCategory)
-                ? _selectedCategory
-                : 'Todas';
-
-            // Filtro por categoría + búsqueda por texto (título, nivel o
-            // categoría).
-            final String query = _normalize(_query);
-            final List<Routine> filtered = all.where((r) {
-              final bool matchesCategory =
-                  selected == 'Todas' || r.category == selected;
-              final bool matchesQuery =
-                  query.isEmpty ||
-                  _normalize('${r.title} ${r.level} ${r.category}')
-                      .contains(query);
-              return matchesCategory && matchesQuery;
-            }).toList();
-
-            // La rutina destacada es la primera marcada como Destacada que
-            // pase los filtros; el resto va en la lista de abajo.
-            final List<Routine> featuredList = filtered
-                .where((r) => r.featured)
-                .toList();
-            final Routine? featured = featuredList.isEmpty
-                ? null
-                : featuredList.first;
-            final List<Routine> others = filtered
-                .where((r) => r.id != featured?.id)
-                .toList();
-
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Nuestras rutinas',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('Rutinas')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'No se pudieron cargar las rutinas.\n${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.lyricwhite),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Selecciona o explora tu próxima sesión',
-                    style: TextStyle(color: AppColors.primary, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildSearchField(),
-                  const SizedBox(height: 14),
-                  _buildCategoryChips(categories, selected),
-                  const SizedBox(height: 20),
+                  );
+                }
 
-                  if (filtered.isEmpty)
-                    _buildEmptyMessage(noRoutinesAtAll: all.isEmpty)
-                  else ...[
-                    if (featured != null) ...[
-                      _buildFeaturedHeader(featured),
-                      const SizedBox(height: 12),
-                      _FeaturedCard(
-                        routine: featured,
-                        onStart: () => _openRoutine(featured),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-                    if (others.isNotEmpty) ...[
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: AppColors.primary),
+                  );
+                }
+
+                final List<Routine> all = snapshot.data!.docs
+                    .map(Routine.fromFirestore)
+                    .toList();
+
+                final List<String> categories = [
+                  'Todas',
+                  ...{
+                    for (final r in all)
+                      if (r.category.isNotEmpty) r.category,
+                  },
+                ];
+                final String selected = categories.contains(_selectedCategory)
+                    ? _selectedCategory
+                    : 'Todas';
+
+                final String query = _normalize(_query);
+                final List<Routine> filtered = all.where((r) {
+                  final bool matchesCategory =
+                      selected == 'Todas' || r.category == selected;
+                  final bool matchesQuery =
+                      query.isEmpty ||
+                      _normalize('${r.title} ${r.level} ${r.category}')
+                          .contains(query);
+                  return matchesCategory && matchesQuery;
+                }).toList();
+
+                // Favoritas primero, sin revolver el orden entre sí ni
+                // el de las no-favoritas.
+                final List<Routine> favoritasList = filtered
+                    .where((r) => favoritas.contains(r.id))
+                    .toList();
+                final List<Routine> noFavoritasList = filtered
+                    .where((r) => !favoritas.contains(r.id))
+                    .toList();
+                final List<Routine> ordered = [
+                  ...favoritasList,
+                  ...noFavoritasList,
+                ];
+
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       const Text(
-                        '¡Prueba rutinas diferentes!',
+                        'Nuestras rutinas',
                         style: TextStyle(
                           color: AppColors.primary,
-                          fontSize: 18,
+                          fontSize: 26,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      for (final r in others)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _RoutineListTile(
-                            routine: r,
-                            onTap: () => _openRoutine(r),
-                          ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Selecciona o explora tu próxima sesión',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: 13,
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildSearchField(),
+                      const SizedBox(height: 14),
+                      _buildCategoryChips(categories, selected),
+                      const SizedBox(height: 20),
+                      if (ordered.isEmpty)
+                        _buildEmptyMessage(noRoutinesAtAll: all.isEmpty)
+                      else
+                        // Carrusel vertical: todas expandidas, una debajo
+                        // de otra, favoritas primero.
+                        for (final r in ordered)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: _RoutineCard(
+                              routine: r,
+                              isFavorite: favoritas.contains(r.id),
+                              onStart: () => _openRoutine(r),
+                              onToggleFavorite: () => _toggleFavorite(
+                                r.id,
+                                favoritas.contains(r.id),
+                              ),
+                            ),
+                          ),
                     ],
-                  ],
-                ],
-              ),
+                  ),
+                );
+              },
             );
           },
         ),
@@ -238,7 +260,6 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     );
   }
 
-  // ---- Barra de búsqueda ----
   Widget _buildSearchField() {
     OutlineInputBorder border(double width) => OutlineInputBorder(
       borderRadius: BorderRadius.circular(28),
@@ -264,7 +285,6 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
     );
   }
 
-  // ---- Chips de categoría (con scroll horizontal) ----
   Widget _buildCategoryChips(List<String> categories, String selected) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -282,26 +302,6 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
             ),
         ],
       ),
-    );
-  }
-
-  // ---- "Rutina destacada" + nivel ----
-  Widget _buildFeaturedHeader(Routine featured) {
-    return Row(
-      children: [
-        const Icon(Icons.circle, size: 12, color: AppColors.primary),
-        const SizedBox(width: 8),
-        const Text(
-          'Rutina destacada',
-          style: TextStyle(
-            color: AppColors.primary,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const Spacer(),
-        if (featured.level.isNotEmpty) _OutlineChip(label: featured.level),
-      ],
     );
   }
 
@@ -325,7 +325,6 @@ class _RoutinesScreenState extends State<RoutinesScreen> {
 // WIDGETS PEQUEÑOS, PRIVADOS DE ESTA PANTALLA
 // ---------------------------------------------------------------------------
 
-/// Chip de filtro: relleno cuando está seleccionado, solo borde si no.
 class _CategoryChip extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -376,7 +375,6 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-/// Pastilla con solo borde (nivel de la rutina).
 class _OutlineChip extends StatelessWidget {
   final String label;
 
@@ -398,7 +396,6 @@ class _OutlineChip extends StatelessWidget {
   }
 }
 
-/// Pastilla rellena con reloj y minutos.
 class _DurationChip extends StatelessWidget {
   final int minutes;
 
@@ -431,8 +428,6 @@ class _DurationChip extends StatelessWidget {
   }
 }
 
-/// Imagen de la rutina (miniatura). Si no hay URL o falla la carga, se
-/// dibuja un recuadro con un ícono para no romper el diseño.
 class _RoutineImage extends StatelessWidget {
   final String url;
 
@@ -456,12 +451,21 @@ class _RoutineImage extends StatelessWidget {
   }
 }
 
-/// Tarjeta grande de la rutina destacada.
-class _FeaturedCard extends StatelessWidget {
+/// Tarjeta grande de una rutina — ahora TODAS las rutinas se muestran
+/// así, en el carrusel vertical (antes solo la "destacada" se veía así
+/// de grande, y el resto salían chicas en una lista aparte).
+class _RoutineCard extends StatelessWidget {
   final Routine routine;
   final VoidCallback onStart;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
 
-  const _FeaturedCard({required this.routine, required this.onStart});
+  const _RoutineCard({
+    required this.routine,
+    required this.onStart,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -487,12 +491,22 @@ class _FeaturedCard extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   _RoutineImage(url: routine.imageUrl),
-                  const Positioned(
+                  Positioned(
                     top: 8,
                     left: 8,
-                    child: Icon(
-                      Icons.bookmark_border,
-                      color: AppColors.primary,
+                    child: GestureDetector(
+                      onTap: onToggleFavorite,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.background.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isFavorite ? Icons.bookmark : Icons.bookmark_border,
+                          color: AppColors.primary,
+                        ),
+                      ),
                     ),
                   ),
                   if (routine.durationMin > 0)
@@ -567,9 +581,14 @@ class _FeaturedCard extends StatelessWidget {
               ],
             ),
           ),
+          if (routine.level.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+              child: _OutlineChip(label: routine.level),
+            ),
           if (routine.description.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
               child: Text(
                 routine.description,
                 style: TextStyle(
@@ -605,78 +624,6 @@ class _FeaturedCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Fila de la lista "¡Prueba rutinas diferentes!".
-class _RoutineListTile extends StatelessWidget {
-  final Routine routine;
-  final VoidCallback onTap;
-
-  const _RoutineListTile({required this.routine, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          border: Border.all(color: AppColors.primary),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 56,
-                height: 56,
-                child: _RoutineImage(url: routine.imageUrl),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (routine.category.isNotEmpty)
-                    Text(
-                      routine.category,
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  Text(
-                    routine.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      if (routine.level.isNotEmpty)
-                        _OutlineChip(label: routine.level),
-                      if (routine.durationMin > 0)
-                        _DurationChip(minutes: routine.durationMin),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: AppColors.primary, size: 30),
-          ],
-        ),
       ),
     );
   }
