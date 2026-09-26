@@ -1,18 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/deporte_colors.dart';
 import '../widgets/bottom_nav_bar.dart';
-
-/// Pantalla de Locker (personalización de avatar): solo color de piel.
-/// El color del torso NO se elige aquí — se calcula solo, a partir del
-/// deporte asignado al alumno (mismo cálculo que el pill "Entrenando"
-/// de Perfil), porque representa la playera de su categoría deportiva.
-///
-/// Ubicación sugerida: lib/screens/locker_screen.dart
-/// Se abre encima de Perfil con Navigator.push (trae flecha de regresar),
-/// no es una pestaña más del menú principal.
 
 const Map<String, Color> _skinTones = {
   'clara': Color(0xFFF7D7C4),
@@ -23,6 +15,13 @@ const Map<String, Color> _skinTones = {
 };
 
 const String _defaultSkinKey = 'media';
+
+const Map<String, String> _hairModels = {
+  'corto':
+      'https://miguelcastaneda1765-lab.github.io/Modelos3D/Cabello_corto.glb',
+  'largo':
+      'https://miguelcastaneda1765-lab.github.io/Modelos3D/Cabello_largo.glb',
+};
 
 class LockerScreen extends StatefulWidget {
   final Map<String, dynamic> alumnoData;
@@ -44,11 +43,17 @@ class _LockerScreenState extends State<LockerScreen> {
         .update({'ColorPiel': key});
   }
 
+  Future<void> _updateHairModel(String hairKey) {
+    if (_studentDocId.isEmpty) return Future.value();
+    final modeloUrl = _hairModels[hairKey] ?? '';
+    return FirebaseFirestore.instance
+        .collection('Alumnos')
+        .doc(_studentDocId)
+        .update({'Avatar.ModeloUrl': modeloUrl});
+  }
+
   @override
   Widget build(BuildContext context) {
-    final DocumentReference? deporteRef =
-        widget.alumnoData['Deporte'] as DocumentReference?;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -60,21 +65,16 @@ class _LockerScreenState extends State<LockerScreen> {
                     .doc(_studentDocId)
                     .snapshots(),
           builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'No se pudo cargar el locker.\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.primary),
-                ),
-              );
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
             }
 
+            final data = snapshot.data!.data() ?? {};
             final String skinKey =
-                snapshot.data?.data()?['ColorPiel'] as String? ??
-                _defaultSkinKey;
+                data['ColorPiel'] as String? ?? _defaultSkinKey;
             final Color skinColor =
                 _skinTones[skinKey] ?? _skinTones[_defaultSkinKey]!;
+            final String modeloUrl = data['Avatar']?['ModeloUrl'] ?? '';
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -83,18 +83,24 @@ class _LockerScreenState extends State<LockerScreen> {
                 children: [
                   _buildTopBar(),
                   const SizedBox(height: 20),
-                  // El FutureBuilder de aquí adentro trae el deporte del
-                  // alumno UNA vez para saber el color del torso; el
-                  // color de piel sí viene del StreamBuilder de arriba
-                  // (en vivo), porque ese sí lo cambia esta pantalla.
+
                   SizedBox(
-                    height: 260,
+                    height: 300,
                     width: double.infinity,
-                    child: _AvatarPreview(
-                      skinColor: skinColor,
-                      deporteRef: deporteRef,
-                    ),
+                    child: modeloUrl.isNotEmpty
+                        ? ModelViewer(
+                            src: modeloUrl,
+                            alt: "Avatar 3D",
+                            autoRotate: true,
+                            cameraControls: true,
+                            backgroundColor: Colors.transparent,
+                          )
+                        : const Text(
+                            'No hay modelo asignado',
+                            style: TextStyle(color: AppColors.primary),
+                          ),
                   ),
+
                   const SizedBox(height: 28),
                   const Text(
                     'Color de piel',
@@ -106,19 +112,60 @@ class _LockerScreenState extends State<LockerScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildSkinSwatches(skinKey),
+
                   const SizedBox(height: 24),
                   const Text(
-                    'Color de torso',
+                    'Cabello',
                     style: TextStyle(
                       color: AppColors.primary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Se calcula solo, según tu deporte — no se elige aquí.',
-                    style: TextStyle(color: AppColors.primary, fontSize: 12),
+                  const SizedBox(height: 12),
+
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: _hairModels.entries.map((entry) {
+                      final bool isSelected = modeloUrl == entry.value;
+                      return GestureDetector(
+                        onTap: () => _updateHairModel(entry.key),
+                        child: Container(
+                          width: 100,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.primary.withOpacity(0.2)
+                                : Colors.white,
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : Colors.grey.shade300,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.face,
+                                color: AppColors.primary,
+                                size: 32,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                entry.key.toUpperCase(),
+                                style: const TextStyle(
+                                  color: AppColors.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ],
               ),
@@ -184,80 +231,6 @@ class _LockerScreenState extends State<LockerScreen> {
           ),
         );
       }).toList(),
-    );
-  }
-}
-
-/// Avatar simple (círculo + rectángulo redondeado) con el color de piel
-/// elegido y el color de torso calculado desde el deporte del alumno.
-/// Si algún día hay una imagen real del "Mii" en app_config/home, esa
-/// se muestra en su lugar automáticamente.
-class _AvatarPreview extends StatelessWidget {
-  final Color skinColor;
-  final DocumentReference? deporteRef;
-
-  const _AvatarPreview({required this.skinColor, required this.deporteRef});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('app_config')
-          .doc('home')
-          .snapshots(),
-      builder: (context, snapshot) {
-        final String? imageUrl = snapshot.data?.data()?['imageUrl'] as String?;
-
-        if (!snapshot.hasError && imageUrl != null && imageUrl.isNotEmpty) {
-          return Image.network(
-            imageUrl,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) => _buildFallback(),
-          );
-        }
-
-        return _buildFallback();
-      },
-    );
-  }
-
-  Widget _buildFallback() {
-    // Sin ID de deporte todavía (o mientras carga), usa el color
-    // principal de la app como respaldo neutro para el torso.
-    if (deporteRef == null) {
-      return _shapes(torsoColor: AppColors.primary);
-    }
-
-    return FutureBuilder<DocumentSnapshot>(
-      future: deporteRef!.get(),
-      builder: (context, snapshot) {
-        final Map<String, dynamic>? data =
-            snapshot.data?.data() as Map<String, dynamic>?;
-        final Color torsoColor = colorForTipo(data?['Tipo'] as String?);
-        return _shapes(torsoColor: torsoColor);
-      },
-    );
-  }
-
-  Widget _shapes({required Color torsoColor}) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 90,
-          height: 90,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: skinColor),
-        ),
-        const SizedBox(height: 4),
-        Container(
-          width: 130,
-          height: 140,
-          decoration: BoxDecoration(
-            color: torsoColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
-          ),
-        ),
-      ],
     );
   }
 }

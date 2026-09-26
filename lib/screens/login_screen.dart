@@ -40,22 +40,12 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       final alumnoDoc = query.docs.first;
-      // .data() nunca incluye el ID del documento — Firestore lo guarda
-      // aparte de los campos. Lo agregamos aquí a mano, con la llave
-      // 'id', que es justo lo que esperan HomeScreen/HomeGymScreen para
-      // saber a qué alumno sumarle sus minutos.
       final alumnoData = {...alumnoDoc.data(), 'id': alumnoDoc.id};
       final storedPassword = alumnoData['Contraseña']?.toString().trim();
-
       final enteredPassword = _passwordController.text.trim();
-
-      // Debug opcional para verificar valores
-      print('Contraseña en BD: "$storedPassword"');
-      print('Contraseña ingresada: "$enteredPassword"');
 
       if (storedPassword != null &&
           storedPassword.toLowerCase() == enteredPassword.toLowerCase()) {
-        // ✅ Contraseña correcta → obtener datos del campus
         final DocumentReference campusRef = alumnoData['Campus'];
         final campusDoc = await campusRef.get();
         final campusData = campusDoc.data() as Map<String, dynamic>?;
@@ -94,7 +84,7 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 32),
-              const _GradientLogo(),
+              const _LogoImage(), // 👈 aquí usamos la imagen en lugar del texto
               const SizedBox(height: 24),
               const Text(
                 'Hagámoslo juntos',
@@ -192,28 +182,17 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-/// Logo con degradado teal-verde.
-class _GradientLogo extends StatelessWidget {
-  const _GradientLogo();
+/// Logo con imagen PNG desde assets.
+class _LogoImage extends StatelessWidget {
+  const _LogoImage();
 
   @override
   Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) => const LinearGradient(
-        colors: AppColors.logoGradient,
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-      ).createShader(bounds),
-      child: const Text(
-        'Side\nby\nSide',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 48,
-          fontWeight: FontWeight.w900,
-          fontStyle: FontStyle.italic,
-          height: 0.95,
-        ),
+    return SizedBox(
+      height: 120, // 👈 ajusta el tamaño según lo necesites
+      child: Image.asset(
+        'assets/images/side_by_side_logo.png', // 👈 tu imagen en assets
+        fit: BoxFit.contain,
       ),
     );
   }

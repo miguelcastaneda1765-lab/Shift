@@ -26,8 +26,8 @@ class AppBottomNavBar extends StatelessWidget {
   });
  
   static const List<IconData> _icons = [
-    Icons.front_hand_outlined,
     Icons.home_outlined,
+    Icons.front_hand_outlined,
     Icons.star_outline,
     Icons.person_outline,
   ];

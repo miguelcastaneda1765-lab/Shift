@@ -7,8 +7,6 @@ import 'home_screen.dart';
 import 'ranking_screen.dart';
 import 'perfil_screen.dart';
 
-/// Pantalla raíz de navegación.
-/// Recibe los datos del alumno y campus desde el login.
 class MainNavigationScreen extends StatefulWidget {
   final Map<String, dynamic> alumnoData;
   final Map<String, dynamic>? campusData;
@@ -24,34 +22,29 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _selectedIndex = 1; // arranca en Home
+  int _selectedIndex = 0; // ✅ Home arranca en índice 0
 
   void _goToTab(int index) => setState(() => _selectedIndex = index);
 
   @override
   Widget build(BuildContext context) {
-    // Las pantallas reciben los datos del alumno y campus
+    final String alumnoId = widget.alumnoData['id'] as String? ?? '';
+
     final List<Widget> screens = [
+      HomeScreen(alumnoId: alumnoId, campusData: widget.campusData), // 0 - Home
       RoutinesScreen(
         alumnoData: widget.alumnoData,
         campusData: widget.campusData,
-      ), // 0 - mano
-      HomeScreen(
-        alumnoData: widget.alumnoData,
-        campusData: widget.campusData,
-      ), // 1 - casa
+      ), // 1 - Rutinas/Tutoriales
       RankingScreen(
         alumnoData: widget.alumnoData,
         campusData: widget.campusData,
-        // Al tocar "+ Registrar sesión" en Ranking, esto cambia la pestaña
-        // seleccionada aquí en la raíz, y el IndexedStack de abajo muestra
-        // Home en vez de Ranking.
-        onGoHome: () => _goToTab(1),
-      ), // 2 - estrella
+        onGoHome: () => _goToTab(0),
+      ), // 2 - Ranking
       ProfileScreen(
         alumnoData: widget.alumnoData,
         campusData: widget.campusData,
-      ), // 3 - persona
+      ), // 3 - Perfil
     ];
 
     return Scaffold(

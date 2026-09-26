@@ -1,30 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../theme/app_colors.dart';
+import '../widgets/home_header.dart';
 import '../widgets/FilledPillButton.dart';
 import '../widgets/outline_pill_button.dart';
-import '../widgets/exercise_placeholder.dart';
 import '../widgets/bottom_nav_bar.dart';
-import '../widgets/home_header.dart';
 import 'home_gym_screen.dart';
 
-/// Cuánto dura el calentamiento antes de pasar solo a Gimnasio.
-const int _warmupDurationSeconds = 60; // 1 minuto
+/// Duración del calentamiento: 3 minutos con 30 segundos = 210 segundos
+const int _warmupDurationSeconds = 210;
 
-/// Pantalla de calentamiento (warm-up).
-/// Ubicación: lib/screens/home_warmup_screen.dart
-///
-/// Dos timers corren en paralelo desde que se abre la pantalla:
-/// - "Timer calentamiento": cuenta HACIA ATRÁS desde 1 minuto. Al llegar
-///   a 0, navega sola a HomeGymScreen.
-/// - "Timer total": cuenta HACIA ADELANTE desde 0, y sigue corriendo (se le
-///   pasa su valor a HomeGymScreen para que continúe ahí sin reiniciarse).
-///
-/// Tocar cualquiera de los dos botones de timer lo pausa/reanuda — cada
-/// uno de forma independiente. El botón "Skip" salta directo a Gimnasio
-/// sin esperar a que el calentamiento termine.
 class HomeWarmupScreen extends StatefulWidget {
   const HomeWarmupScreen({
     super.key,
@@ -50,9 +39,6 @@ class _HomeWarmupScreenState extends State<HomeWarmupScreen> {
   int _totalElapsed = 0;
   bool _warmupPaused = false;
   bool _totalPaused = false;
-
-  // Evita navegar dos veces si, por ejemplo, tocas Skip justo cuando el
-  // timer de calentamiento está por llegar a 0.
   bool _navigated = false;
 
   Timer? _ticker;
@@ -60,16 +46,11 @@ class _HomeWarmupScreenState extends State<HomeWarmupScreen> {
   @override
   void initState() {
     super.initState();
-    // Un solo Timer.periodic controla ambos contadores; cada uno respeta
-    // su propia bandera de pausa sin afectar al otro.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _onTick());
   }
 
   @override
   void dispose() {
-    // Muy importante: si no cancelas el Timer aquí, sigue corriendo (y
-    // llamando setState) después de que la pantalla ya se cerró, lo que
-    // truena la app con un error de "setState after dispose".
     _ticker?.cancel();
     super.dispose();
   }
@@ -93,8 +74,6 @@ class _HomeWarmupScreenState extends State<HomeWarmupScreen> {
     if (_navigated) return;
     _navigated = true;
     _ticker?.cancel();
-    // pushReplacement (no push): al terminar el calentamiento no tiene
-    // sentido poder "regresar" a él con el botón de atrás.
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (context) => HomeGymScreen(
@@ -120,49 +99,94 @@ class _HomeWarmupScreenState extends State<HomeWarmupScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 24),
-              HomeHeader(
-                campusName: widget.campusName,
-                userName: widget.userName,
-                streakDays: widget.streakDays,
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('Alumnos')
+              .doc(widget.alumnoId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final alumnoData = snapshot.data!.data() ?? {};
+            final nombre = alumnoData['Usuario'] ?? 'Alumno';
+            final racha = alumnoData['RachaDias'] ?? 0;
+
+            final modeloUrl =
+                alumnoData['Avatar']?['ModeloUrl'] ??
+                alumnoData['Avatar']?['ModeloURL'] ??
+                '';
+
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  HomeHeader(
+                    campusName: widget.campusName,
+                    userName: nombre,
+                    streakDays: racha,
+                  ),
+                  const SizedBox(height: 24),
+
+                  // 👇 Monito 3D en el centro
+                  Expanded(
+                    child: Center(
+                      child: modeloUrl.isNotEmpty
+                          ? ModelViewer(
+                              key: ValueKey(modeloUrl),
+                              src: modeloUrl,
+                              alt: "Avatar 3D",
+                              autoRotate: true,
+                              cameraControls: true,
+                              backgroundColor: Colors.transparent,
+                            )
+                          : Text(
+                              'No hay modelo asignado',
+                              style: TextStyle(
+                                color: AppColors.primary.withOpacity(0.5),
+                                fontSize: 14,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Timers de calentamiento y total
+                  OutlinePillButton(
+                    label: _warmupPaused
+                        ? 'Calentamiento: ${_formatTime(_warmupRemaining)} (en pausa)'
+                        : 'Calentamiento: ${_formatTime(_warmupRemaining)}',
+                    onPressed: () =>
+                        setState(() => _warmupPaused = !_warmupPaused),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinePillButton(
+                    label: _totalPaused
+                        ? 'Total: ${_formatTime(_totalElapsed)} (en pausa)'
+                        : 'Total: ${_formatTime(_totalElapsed)}',
+                    onPressed: () =>
+                        setState(() => _totalPaused = !_totalPaused),
+                  ),
+                  const SizedBox(height: 16),
+
+                  FilledPillButton(
+                    label: 'Skip',
+                    onPressed: _goToGym,
+                    textColor: AppColors.lyricwhite,
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-              const SizedBox(height: 24),
-              const ExercisePlaceholder(label: 'Calentamiento'),
-              const SizedBox(height: 24),
-              OutlinePillButton(
-                label: _warmupPaused
-                    ? 'Calentamiento: ${_formatTime(_warmupRemaining)} (en pausa)'
-                    : 'Calentamiento: ${_formatTime(_warmupRemaining)}',
-                onPressed: () => setState(() => _warmupPaused = !_warmupPaused),
-              ),
-              const SizedBox(height: 16),
-              OutlinePillButton(
-                label: _totalPaused
-                    ? 'Total: ${_formatTime(_totalElapsed)} (en pausa)'
-                    : 'Total: ${_formatTime(_totalElapsed)}',
-                onPressed: () => setState(() => _totalPaused = !_totalPaused),
-              ),
-              const SizedBox(height: 16),
-              FilledPillButton(
-                label: 'Skip',
-                onPressed: _goToGym,
-                textColor: AppColors.lyricwhite,
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
+            );
+          },
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        currentIndex: 1,
-        // Esta pantalla se abrió encima de Home (Navigator.push), no es
-        // una pestaña más del menú principal — igual que en LockerScreen,
-        // tocar cualquier ícono aquí solo regresa.
+        currentIndex: 0,
         onTap: (index) => Navigator.of(context).pop(),
       ),
     );

@@ -2,27 +2,16 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:model_viewer_plus/model_viewer_plus.dart';
 
 import '../theme/app_colors.dart';
 import '../widgets/FilledPillButton.dart';
 import '../widgets/outline_pill_button.dart';
-import '../widgets/exercise_placeholder.dart';
 import '../widgets/bottom_nav_bar.dart';
 import '../widgets/home_header.dart';
 
-/// Cuánto dura un descanso cada vez que se activa "Break".
 const int _breakDurationSeconds = 30;
 
-/// Pantalla de gimnasio/entrenamiento activo.
-/// Ubicación: lib/screens/home_gym_screen.dart
-///
-/// [initialTotalSeconds] es el tiempo que ya llevaba corriendo el "Timer
-/// total" en la pantalla de Warmup — aquí sigue contando desde ahí.
-///
-/// Mientras el alumno está en Break, el "Timer total" se pausa
-/// automáticamente (no cuenta el descanso como tiempo de entrenamiento);
-/// al terminar el break (o cancelarlo con el mismo botón), el total
-/// sigue corriendo donde se quedó.
 class HomeGymScreen extends StatefulWidget {
   const HomeGymScreen({
     super.key,
@@ -70,16 +59,13 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
   void _onTick() {
     if (!mounted) return;
     setState(() {
-      // El total NO avanza mientras está en break — el descanso no cuenta
-      // como tiempo de entrenamiento.
       if (!_totalPaused && !_onBreak) {
         _totalElapsed++;
       }
-
       if (_onBreak && !_breakPaused && _breakRemaining > 0) {
         _breakRemaining--;
         if (_breakRemaining == 0) {
-          _onBreak = false; // el break termina solo, se reanuda el total
+          _onBreak = false;
         }
       }
     });
@@ -88,7 +74,6 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
   void _handleBreak() {
     setState(() {
       if (_onBreak) {
-        // Ya estaba en break: este toque lo cancela antes de tiempo.
         _onBreak = false;
         _breakRemaining = 0;
       } else {
@@ -100,9 +85,6 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
   }
 
   Future<void> _handleStop() async {
-    // Convertimos segundos a minutos completos. Con round() en vez de
-    // ~/ (división entera), una sesión de 1:35 (95 seg) cuenta como 2 min
-    // en vez de perder ese medio minuto redondeando siempre hacia abajo.
     final int minutos = (_totalElapsed / 60).round();
 
     if (minutos > 0 && widget.campusId.isNotEmpty) {
@@ -114,8 +96,6 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
             'MinutesMonth': FieldValue.increment(minutos),
           });
 
-      // Solo si ya tenemos el ID del alumno (pendiente de resolver en
-      // Login) también actualizamos su acumulado personal.
       if (widget.alumnoId.isNotEmpty) {
         await FirebaseFirestore.instance
             .collection('Alumnos')
@@ -136,6 +116,10 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final campusRef = FirebaseFirestore.instance
+        .collection('CampusRanking')
+        .doc(widget.campusId);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -152,8 +136,67 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                   streakDays: widget.streakDays,
                 ),
                 const SizedBox(height: 24),
-                const ExercisePlaceholder(label: 'Gimnasio'),
+
+                // 👇 Imagen de gym con todos los monitos adentro
+                Container(
+                  height: 300, // más grande
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    image: const DecorationImage(
+                      image: AssetImage('assets/images/gym.jpg'),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('Alumnos')
+                        .where('Campus', isEqualTo: campusRef)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        );
+                      }
+
+                      // Incluimos al usuario actual + compañeros
+                      final docs = snapshot.data!.docs;
+                      final allPlayers = docs.take(3).toList(); // máximo 3
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: allPlayers.map((doc) {
+                          final data = doc.data();
+                          final modeloUrl =
+                              data['Avatar']?['ModeloUrl'] ??
+                              data['Avatar']?['ModeloURL'] ??
+                              '';
+                          return SizedBox(
+                            height: 120,
+                            width: 100,
+                            child: modeloUrl.isNotEmpty
+                                ? ModelViewer(
+                                    src: modeloUrl,
+                                    alt: "Avatar",
+                                    autoRotate: true,
+                                    cameraControls: false,
+                                    backgroundColor: Colors.transparent,
+                                  )
+                                : const Icon(
+                                    Icons.person,
+                                    size: 64,
+                                    color: Colors.white,
+                                  ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                ),
+
                 const SizedBox(height: 24),
+
                 OutlinePillButton(
                   label: _onBreak
                       ? 'Break: ${_formatTime(_breakRemaining)}${_breakPaused ? ' (en pausa)' : ''}'
@@ -189,7 +232,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        currentIndex: 1,
+        currentIndex: 0, // Home sigue marcado
         onTap: (index) =>
             Navigator.of(context).popUntil((route) => route.isFirst),
       ),
