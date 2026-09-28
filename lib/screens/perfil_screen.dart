@@ -16,7 +16,6 @@ class ProfileScreen extends StatelessWidget {
 
   const ProfileScreen({super.key, required this.alumnoData, this.campusData});
 
-  // Lee un entero probando varias claves (distinto casing)
   int _readInt(Map<String, dynamic> data, List<String> keys) {
     for (final k in keys) {
       final v = data[k];
@@ -50,23 +49,26 @@ class ProfileScreen extends StatelessWidget {
                 ),
               );
             }
-            if (!snapshot.hasData)
+            if (!snapshot.hasData) {
               return const Center(child: CircularProgressIndicator());
+            }
 
             final data = snapshot.data!.data() ?? <String, dynamic>{};
 
-            // Datos básicos
             final String nombre = data['Nombre'] ?? data['Usuario'] ?? 'Alumno';
             final String campusNombre = campusData?['Nombre'] ?? '';
 
-            // Modelo 3D (puede venir en Avatar.ModeloUrl o Avatar.ModeloURL)
-            final String modeloUrl =
-                (data['Avatar']?['ModeloUrl'] ??
-                        data['Avatar']?['ModeloURL'] ??
-                        '')
-                    .toString();
+            // 🔧 Corrección: leer Cabello y decidir modelo
+            final avatar = data['Avatar'] ?? {};
+            final String cabello = avatar['Cabello'] ?? 'corto';
 
-            // Estadísticas (lectura segura con distintos nombres)
+            String modeloUrl = '';
+            if (cabello == 'corto') {
+              modeloUrl = avatar['ModeloUrlCorto'] ?? '';
+            } else if (cabello == 'largo') {
+              modeloUrl = avatar['ModeloUrlLargo'] ?? '';
+            }
+
             final int minutosTotales = _readInt(data, [
               'MinutosTotales',
               'minutosTotales',
@@ -78,7 +80,6 @@ class ProfileScreen extends StatelessWidget {
               'promedio_semanal',
             ]);
 
-            // Calcular promedio si no existe en DB
             int promedioSemanalComputed = 0;
             if (promedioSemanalFromDb > 0) {
               promedioSemanalComputed = promedioSemanalFromDb;
@@ -91,7 +92,7 @@ class ProfileScreen extends StatelessWidget {
                     .ceil();
                 promedioSemanalComputed = (minutosTotales / weeks).round();
               } else if (minutosTotales > 0) {
-                promedioSemanalComputed = minutosTotales; // fallback visual
+                promedioSemanalComputed = minutosTotales;
               } else {
                 promedioSemanalComputed = 0;
               }
@@ -109,7 +110,6 @@ class ProfileScreen extends StatelessWidget {
                   _buildTopBar(context),
                   const SizedBox(height: 12),
 
-                  // Modelo 3D arriba (forzar rebuild con ValueKey)
                   SizedBox(
                     height: 220,
                     width: double.infinity,
@@ -133,7 +133,6 @@ class ProfileScreen extends StatelessWidget {
 
                   const SizedBox(height: 12),
 
-                  // Nombre y campus
                   Center(
                     child: Text(
                       nombre,
@@ -155,7 +154,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  // Entrenamiento / Deporte / Racha
                   _buildTrainingRow(
                     rachaDias: rachaDias,
                     deporteRef: deporteRef,
@@ -163,13 +161,9 @@ class ProfileScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 20),
-
-                  // Botón locker
                   _buildLockerButton(context),
-
                   const SizedBox(height: 20),
 
-                  // Estadísticas semestre (minutos totales y promedio semanal)
                   _buildSemesterStats(
                     minutosTotales: minutosTotales,
                     promedioSemanal: promedioSemanalComputed,
@@ -179,8 +173,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 24),
-
-                  // Logros
                   _buildAchievements(),
                 ],
               ),

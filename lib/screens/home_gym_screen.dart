@@ -139,7 +139,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
 
                 // 👇 Imagen de gym con todos los monitos adentro
                 Container(
-                  height: 300, // más grande
+                  height: 300,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     image: const DecorationImage(
@@ -159,7 +159,6 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                         );
                       }
 
-                      // Incluimos al usuario actual + compañeros
                       final docs = snapshot.data!.docs;
                       final allPlayers = docs.take(3).toList(); // máximo 3
 
@@ -168,10 +167,16 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: allPlayers.map((doc) {
                           final data = doc.data();
-                          final modeloUrl =
-                              data['Avatar']?['ModeloUrl'] ??
-                              data['Avatar']?['ModeloURL'] ??
-                              '';
+                          final avatar = data['Avatar'] ?? {};
+                          final String cabello = avatar['Cabello'] ?? 'corto';
+
+                          String modeloUrl = '';
+                          if (cabello == 'corto') {
+                            modeloUrl = avatar['ModeloUrlCorto'] ?? '';
+                          } else if (cabello == 'largo') {
+                            modeloUrl = avatar['ModeloUrlLargo'] ?? '';
+                          }
+
                           return SizedBox(
                             height: 120,
                             width: 100,
@@ -232,7 +237,7 @@ class _HomeGymScreenState extends State<HomeGymScreen> {
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        currentIndex: 0, // Home sigue marcado
+        currentIndex: 0,
         onTap: (index) =>
             Navigator.of(context).popUntil((route) => route.isFirst),
       ),

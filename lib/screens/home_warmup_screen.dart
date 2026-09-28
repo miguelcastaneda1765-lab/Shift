@@ -113,10 +113,16 @@ class _HomeWarmupScreenState extends State<HomeWarmupScreen> {
             final nombre = alumnoData['Usuario'] ?? 'Alumno';
             final racha = alumnoData['RachaDias'] ?? 0;
 
-            final modeloUrl =
-                alumnoData['Avatar']?['ModeloUrl'] ??
-                alumnoData['Avatar']?['ModeloURL'] ??
-                '';
+            // 🔧 Corrección: leer Cabello y decidir modelo
+            final avatar = alumnoData['Avatar'] ?? {};
+            final String cabello = avatar['Cabello'] ?? 'corto';
+
+            String modeloUrl = '';
+            if (cabello == 'corto') {
+              modeloUrl = avatar['ModeloUrlCorto'] ?? '';
+            } else if (cabello == 'largo') {
+              modeloUrl = avatar['ModeloUrlLargo'] ?? '';
+            }
 
             return Padding(
               padding: const EdgeInsets.all(20),

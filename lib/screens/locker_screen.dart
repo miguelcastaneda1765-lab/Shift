@@ -16,13 +16,6 @@ const Map<String, Color> _skinTones = {
 
 const String _defaultSkinKey = 'media';
 
-const Map<String, String> _hairModels = {
-  'corto':
-      'https://miguelcastaneda1765-lab.github.io/Modelos3D/Cabello_corto.glb',
-  'largo':
-      'https://miguelcastaneda1765-lab.github.io/Modelos3D/Cabello_largo.glb',
-};
-
 class LockerScreen extends StatefulWidget {
   final Map<String, dynamic> alumnoData;
 
@@ -45,11 +38,11 @@ class _LockerScreenState extends State<LockerScreen> {
 
   Future<void> _updateHairModel(String hairKey) {
     if (_studentDocId.isEmpty) return Future.value();
-    final modeloUrl = _hairModels[hairKey] ?? '';
+    // Guardamos la elección de cabello en Firestore
     return FirebaseFirestore.instance
         .collection('Alumnos')
         .doc(_studentDocId)
-        .update({'Avatar.ModeloUrl': modeloUrl});
+        .update({'Avatar.Cabello': hairKey});
   }
 
   @override
@@ -74,7 +67,17 @@ class _LockerScreenState extends State<LockerScreen> {
                 data['ColorPiel'] as String? ?? _defaultSkinKey;
             final Color skinColor =
                 _skinTones[skinKey] ?? _skinTones[_defaultSkinKey]!;
-            final String modeloUrl = data['Avatar']?['ModeloUrl'] ?? '';
+
+            final avatar = data['Avatar'] ?? {};
+            final String cabello = avatar['Cabello'] ?? 'corto';
+
+            // Seleccionamos el modelo según el campo Cabello
+            String modeloUrl = '';
+            if (cabello == 'corto') {
+              modeloUrl = avatar['ModeloUrlCorto'] ?? '';
+            } else if (cabello == 'largo') {
+              modeloUrl = avatar['ModeloUrlLargo'] ?? '';
+            }
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
@@ -89,6 +92,9 @@ class _LockerScreenState extends State<LockerScreen> {
                     width: double.infinity,
                     child: modeloUrl.isNotEmpty
                         ? ModelViewer(
+                            key: ValueKey(
+                              modeloUrl,
+                            ), // 👈 fuerza recarga al cambiar
                             src: modeloUrl,
                             alt: "Avatar 3D",
                             autoRotate: true,
@@ -127,10 +133,10 @@ class _LockerScreenState extends State<LockerScreen> {
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
-                    children: _hairModels.entries.map((entry) {
-                      final bool isSelected = modeloUrl == entry.value;
+                    children: ['corto', 'largo'].map((hairKey) {
+                      final bool isSelected = cabello == hairKey;
                       return GestureDetector(
-                        onTap: () => _updateHairModel(entry.key),
+                        onTap: () => _updateHairModel(hairKey),
                         child: Container(
                           width: 100,
                           padding: const EdgeInsets.all(12),
@@ -155,7 +161,7 @@ class _LockerScreenState extends State<LockerScreen> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                entry.key.toUpperCase(),
+                                hairKey.toUpperCase(),
                                 style: const TextStyle(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.bold,
